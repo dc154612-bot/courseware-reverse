@@ -1,0 +1,9 @@
+# 脚本输出：含他人作品的截图和文字，不要提交到仓库
+*_frames/
+*_slides/
+web_capture/
+# Python 与系统文件
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
