@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>纸盒工坊：正方体展开图</title>
+<style>
+:root{
+  --mat:#2e5e4e;--mat-deep:#244b3e;--grid:rgba(190,230,205,.16);--grid-major:rgba(200,240,215,.34);
+  --kraft:#c9a274;--kraft-hi:#d8b689;--kraft-edge:#8a6a45;--kraft-in:#a8845a;
+  --graphite:#22302a;--paper:#ffffff;--ruler:#f2c230;--clash:#d9483b;--ok:#2e7d55;--muted:#5b6a63;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --num:"DIN Alternate","Bahnschrift","DIN Condensed","Arial Narrow",sans-serif;
+  --s:64px;
+}
+*{box-sizing:border-box}
+html{font-size:16px}html.big{font-size:20px}
+body{margin:0;background:var(--mat);color:var(--graphite);font-family:var(--sans);line-height:1.6}
+button{font:inherit;font-size:1rem;font-weight:600;padding:.5rem 1rem;min-height:44px;border-radius:4px;border:2px solid var(--graphite);background:var(--paper);color:var(--graphite);cursor:pointer;box-shadow:3px 3px 0 var(--graphite);transition:transform .08s,box-shadow .08s}
+button:active:not(:disabled){transform:translate(3px,3px);box-shadow:0 0 0 var(--graphite)}
+button:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+button.primary{background:var(--ruler)}
+button.chosen{background:var(--graphite);color:#fff}
+button:focus-visible{outline:3px solid var(--ruler);outline-offset:2px}
+
+/* 舞台：裁纸垫铺满整屏 */
+.app{position:relative;height:100vh;min-height:620px;overflow:hidden}
+.mat{position:absolute;inset:0;
+  background:
+    linear-gradient(var(--grid-major) 1px,transparent 1px) 0 0/calc(var(--s)*1) calc(var(--s)*1),
+    linear-gradient(90deg,var(--grid-major) 1px,transparent 1px) 0 0/calc(var(--s)*1) calc(var(--s)*1),
+    linear-gradient(var(--grid) 1px,transparent 1px) 0 0/calc(var(--s)/4) calc(var(--s)/4),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/calc(var(--s)/4) calc(var(--s)/4),
+    radial-gradient(ellipse at 50% 45%,#356b59,var(--mat-deep) 80%)}
+.ruler{position:absolute;left:0;right:0;top:0;height:22px;background:
+  repeating-linear-gradient(90deg,rgba(255,255,255,.55) 0 1px,transparent 1px calc(var(--s)/4)),
+  repeating-linear-gradient(90deg,rgba(255,255,255,.9) 0 2px,transparent 2px var(--s));
+  -webkit-mask:linear-gradient(#000 0 12px,transparent 22px);mask:linear-gradient(#000 0 12px,transparent 22px);opacity:.5}
+.topbar{position:absolute;left:24px;right:24px;top:30px;display:flex;align-items:flex-start;gap:1rem;z-index:5;pointer-events:none}
+.topbar>*{pointer-events:auto}
+.brand{flex:1;color:#fff}
+.brand h1{margin:0;font-size:2rem;line-height:1.2;font-weight:800;letter-spacing:.02em}
+.brand p{margin:.2rem 0 0;color:rgba(255,255,255,.75);font-size:.95rem}
+.tools{display:flex;gap:.6rem}
+
+.stage{position:absolute;inset:110px 25rem 40px 25rem;display:grid;place-items:center}
+#editor{display:grid;grid-template-columns:repeat(6,var(--s));gap:0}
+#editor .cell{width:var(--s);height:var(--s);border:1px dashed rgba(255,255,255,.22);cursor:pointer;display:grid;place-items:center;font-family:var(--num);font-size:1.4rem;color:var(--kraft-edge);position:relative}
+#editor .cell:hover{background:rgba(255,255,255,.06)}
+#editor .cell.on{background:linear-gradient(135deg,var(--kraft-hi),var(--kraft));border:1px dashed var(--kraft-edge);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+#viewport{position:absolute;inset:0;perspective:1100px;display:none;cursor:grab;touch-action:none}
+#viewport:active{cursor:grabbing}
+#scene{position:absolute;left:50%;top:46%;width:0;height:0;transform-style:preserve-3d}
+.face{position:absolute;width:var(--s);height:var(--s);transform-style:preserve-3d}
+.skin{position:absolute;inset:0;backface-visibility:hidden;display:grid;place-items:center;font-family:var(--num);font-size:1.6rem;color:rgba(80,55,30,.75)}
+.skin.out{background:linear-gradient(135deg,var(--kraft-hi),var(--kraft) 70%);border:1px dashed var(--kraft-edge)}
+.skin.in{transform:rotateY(180deg);background:var(--kraft-in);border:1px solid var(--kraft-edge)}
+.face.clash>.skin.out{background:linear-gradient(135deg,#ef7b6f,var(--clash));color:#fff;border-color:#8d221a}
+.face.clash>.skin.in{background:#a8352b}
+.face.root>.skin.out{box-shadow:inset 0 0 0 3px rgba(80,55,30,.35)}
+#shadow{position:absolute;left:50%;top:62%;width:calc(var(--s)*2.4);height:calc(var(--s)*.6);transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(rgba(0,0,0,.45),transparent 70%);opacity:0;pointer-events:none}
+.foldbar{position:absolute;left:50%;bottom:0;transform:translateX(-50%);display:none;align-items:center;gap:.8rem;background:var(--paper);border:2px solid var(--graphite);box-shadow:4px 4px 0 var(--graphite);border-radius:4px;padding:.5rem .9rem;white-space:nowrap}
+.foldbar input{width:12rem;accent-color:var(--ruler)}
+.stagehint{position:absolute;left:0;right:0;top:0;text-align:center;color:rgba(255,255,255,.75);font-size:.9rem}
+
+/* 浮在垫子上的纸片面板 */
+.panel{position:absolute;top:110px;bottom:40px;width:22rem;overflow:auto;padding-bottom:6px;z-index:4;scrollbar-width:thin}
+.panel.left{left:24px}.panel.right{right:24px}
+.sheet{background:var(--paper);border:2px solid var(--graphite);border-radius:4px;box-shadow:5px 5px 0 rgba(15,35,28,.6);padding:1rem 1.1rem;margin:0 6px 1rem 0}
+.sheet h2{margin:0 0 .5rem;font-size:1.05rem;font-weight:800}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;display:grid;grid-template-columns:1.8rem 1fr;gap:.3rem;padding:.25rem 0;color:var(--muted)}
+.steps li::before{content:counter(s);font-family:var(--num);font-size:1.2rem;line-height:1.5;color:var(--muted)}
+.steps li.now{color:var(--graphite);font-weight:700}.steps li.now::before{color:var(--graphite)}
+.steps li.done{color:var(--ok)}.steps li.done::before{content:"✓";color:var(--ok)}
+.row{display:flex;gap:.6rem;flex-wrap:wrap;margin:.6rem 0}
+.hint{color:var(--muted);font-size:.9rem;margin:.3rem 0}
+.count{font-family:var(--num);font-size:2.2rem;line-height:1;color:var(--graphite)}
+.count small{font-size:1rem;color:var(--muted)}
+.fb{border-left:6px solid var(--graphite);padding:.1rem 0 .1rem .8rem}
+.fb.ok{border-color:var(--ok)}.fb.bad{border-color:var(--clash)}
+.fb b{display:block;font-size:1.1rem;margin-bottom:.2rem}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+td,th{border-bottom:1px solid #d9ded9;padding:.35rem .2rem;text-align:center}
+th{font-weight:600;color:var(--muted)}
+td.num{font-family:var(--num);font-size:1.05rem}
+textarea{width:100%;font:inherit;font-size:1rem;border:2px solid var(--graphite);border-radius:4px;padding:.5rem;min-height:4.5rem;resize:vertical}
+
+/* 封面 */
+.cover{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(30,62,51,.86);color:#fff;text-align:center;padding:2rem}
+.cover h2{font-size:clamp(2.2rem,6vw,4.2rem);line-height:1.15;margin:0;font-weight:800}
+.cover p{max-width:34rem;margin:1rem auto 1.6rem;color:rgba(255,255,255,.85);font-size:1.1rem}
+.cover .net{display:grid;grid-template-columns:repeat(4,38px);gap:0;justify-content:center;margin:0 auto 1.6rem}
+.cover .net i{width:38px;height:38px}
+.cover .net i.k{background:linear-gradient(135deg,var(--kraft-hi),var(--kraft));border:1px dashed var(--kraft-edge)}
+.cover.gone{display:none}
+footer{position:absolute;left:24px;bottom:10px;color:rgba(255,255,255,.55);font-size:.8rem;z-index:3}
+
+@media (max-width:1100px){
+  .app{height:auto;min-height:0;overflow:visible}
+  .mat{position:fixed}
+  .topbar{position:relative;left:auto;right:auto;top:auto;padding:28px 16px 0}
+  .stage{position:relative;inset:auto;height:56vh;min-height:380px;margin:0 16px}
+  .panel{position:relative;top:auto;bottom:auto;left:auto!important;right:auto!important;width:auto;overflow:visible;padding:0 16px}
+  footer{position:relative;left:auto;bottom:auto;padding:0 16px 16px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="mat"></div>
+  <div class="ruler"></div>
+
+  <div class="topbar">
+    <div class="brand">
+      <h1>纸盒工坊</h1>
+      <p>正方体的展开图，高中数学立体几何初步</p>
+    </div>
+    <div class="tools">
+      <button id="bigBtn" title="放大字号和纸片，便于投影">大屏</button>
+      <button id="resetAll">重置全部</button>
+    </div>
+  </div>
+
+  <div class="panel left">
+    <div class="sheet">
+      <h2>今天的问题</h2>
+      <p style="margin:0">6 个正方形连成的图形，哪些能折成正方体？有没有一眼就能判断的办法？</p>
+    </div>
+    <div class="sheet">
+      <h2>步骤</h2>
+      <ol class="steps" id="steps">
+        <li>在垫子上点出 6 个连在一起的正方形，或者随机出题</li>
+        <li>先预测：它能折成正方体吗？</li>
+        <li>折起来验证，看哪里出了问题</li>
+        <li>做满 6 题，写下你的判断规则</li>
+      </ol>
+    </div>
+    <div class="sheet">
+      <div class="row" style="margin-top:0">
+        <button id="randBtn" class="primary">随机出题</button>
+        <button id="clearBtn">清空</button>
+      </div>
+      <div class="count" id="count">0<small> / 6 块纸片</small></div>
+      <p class="hint" id="countHint">点垫子上的格子放纸片，再点一次拿走。</p>
+      <h2 style="margin-top:1rem">你的预测</h2>
+      <div class="row">
+        <button id="pYes" disabled>能折成</button>
+        <button id="pNo" disabled>不能折成</button>
+      </div>
+      <button id="foldBtn" class="primary" disabled style="width:100%">折起来</button>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div id="editor"></div>
+    <div id="viewport"><div id="shadow"></div><div id="scene"></div></div>
+    <div class="foldbar" id="foldbar">
+      <span>展开</span><input type="range" id="slider" min="0" max="100" value="0" aria-label="折叠程度"><span>折起</span>
+      <button id="playBtn">重放</button>
+      <button id="backBtn" class="primary">下一题</button>
+    </div>
+    <div class="stagehint" id="stageHint"></div>
+  </div>
+
+  <div class="panel right">
+    <div class="sheet" id="msg"><p class="hint" style="margin:0">先出一道题，再做预测。</p></div>
+    <div class="sheet">
+      <h2>我的记录 <span class="hint" id="score"></span></h2>
+      <table><thead><tr><th>题</th><th>图形</th><th>预测</th><th>结果</th></tr></thead><tbody id="log"></tbody></table>
+    </div>
+    <div class="sheet">
+      <h2>我的发现</h2>
+      <p class="hint" style="margin:.2rem 0 .5rem">做满 6 题后，用一两句话写出你的判断规则：出现什么形状一定不行？</p>
+      <textarea id="rule" placeholder="我发现……"></textarea>
+      <div class="row"><button id="copyBtn">复制记录与发现</button></div>
+      <p class="hint" id="copyHint"></p>
+    </div>
+  </div>
+
+  <footer>设计思路参考 WeduLab（wedulab.com）公开页面；本页代码、文字与图形为自行编写，可离线使用。</footer>
+
+  <div class="cover" id="cover">
+    <div>
+      <div class="net" aria-hidden="true"><i></i><i class="k"></i><i></i><i></i><i class="k"></i><i class="k"></i><i class="k"></i><i class="k"></i><i></i><i class="k"></i><i></i><i></i></div>
+      <h2>六个正方形，<br>折得成正方体吗？</h2>
+      <p>先在脑子里折一遍，说出你的判断，再把纸片真的折起来看看。</p>
+      <button class="primary" id="startBtn" style="font-size:1.15rem;padding:.7rem 2rem">开始</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ROWS = 4, COLS = 6;
+let S = 64;
+let cells = new Set();
+let phase = 'edit';
+let prediction = null;
+let net = null;
+let t = 0, anim = null, userX = 0, userY = 0;
+const records = [];
+
+const $ = id => document.getElementById(id);
+const key = (r, c) => r + ',' + c;
+const parse = k => k.split(',').map(Number);
+const DIRS = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+// 正方体在网格上滚动：记录 6 个面的朝向，落在格子上的那一面就是这一格
+function roll(v, dr, dc) {
+  const [x, y, z] = v;
+  if (dc === 1) return [z, y, -x];
+  if (dc === -1) return [-z, y, x];
+  if (dr === 1) return [x, z, -y];
+  return [x, -z, y];
+}
+const START = [[0,0,-1],[0,0,1],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0]];
+const bottomOf = vs => vs.findIndex(v => v[0] === 0 && v[1] === 0 && v[2] === -1);
+
+function analyse(list) {
+  const set = new Set(list.map(([r, c]) => key(r, c)));
+  let root = list[0], best = -1;
+  for (const [r, c] of list) {
+    const n = DIRS.filter(([a, b]) => set.has(key(r + a, c + b))).length;
+    if (n > best) { best = n; root = [r, c]; }
+  }
+  const nodes = {}, rk = key(...root);
+  nodes[rk] = { r: root[0], c: root[1], dir: null, children: [], vs: START, face: bottomOf(START) };
+  const queue = [rk];
+  while (queue.length) {
+    const k = queue.shift(), n = nodes[k];
+    for (const [dr, dc] of DIRS) {
+      const nk = key(n.r + dr, n.c + dc);
+      if (!set.has(nk) || nodes[nk]) continue;
+      const vs = n.vs.map(v => roll(v, dr, dc));
+      nodes[nk] = { r: n.r + dr, c: n.c + dc, dir: [dr, dc], children: [], vs, face: bottomOf(vs) };
+      n.children.push(nk);
+      queue.push(nk);
+    }
+  }
+  const connected = Object.keys(nodes).length === list.length;
+  const byFace = {};
+  for (const k in nodes) (byFace[nodes[k].face] ||= []).push(k);
+  const clash = new Set(Object.values(byFace).filter(a => a.length > 1).flat());
+  return { root: rk, nodes, connected, valid: connected && Object.keys(byFace).length === 6, clash, set };
+}
+function has2x2(set) {
+  for (const k of set) { const [r, c] = parse(k);
+    if (set.has(key(r, c + 1)) && set.has(key(r + 1, c)) && set.has(key(r + 1, c + 1))) return true; }
+  return false;
+}
+function maxRun(set) {
+  let m = 0;
+  for (const k of set) { const [r, c] = parse(k);
+    let a = 1; while (set.has(key(r, c + a))) a++;
+    let b = 1; while (set.has(key(r + b, c))) b++;
+    m = Math.max(m, a, b); }
+  return m;
+}
+function canon(list) {
+  let best = null;
+  for (let s = 0; s < 8; s++) {
+    const p = list.map(([r, c]) => { let a = r, b = c; if (s & 4) [a, b] = [b, a]; if (s & 1) a = -a; if (s & 2) b = -b; return [a, b]; });
+    const mr = Math.min(...p.map(x => x[0])), mc = Math.min(...p.map(x => x[1]));
+    const str = p.map(([a, b]) => (a - mr) + ',' + (b - mc)).sort().join(';');
+    if (best === null || str < best) best = str;
+  }
+  return best;
+}
+function hexominoes() {
+  let level = new Set(['0,0']);
+  for (let n = 2; n <= 6; n++) {
+    const next = new Set();
+    for (const s of level) {
+      const list = s.split(';').map(parse), set = new Set(s.split(';'));
+      for (const [r, c] of list) for (const [a, b] of DIRS) {
+        if (!set.has(key(r + a, c + b))) next.add(canon([...list, [r + a, c + b]]));
+      }
+    }
+    level = next;
+  }
+  return [...level].map(s => s.split(';').map(parse));
+}
+const ALL = hexominoes();
+(function selfTest() {
+  console.assert(ALL.length === 35, '六连块应有 35 种', ALL.length);
+  console.assert(ALL.filter(l => analyse(l).valid).length === 11, '正方体展开图应有 11 种');
+  const T = rows => rows.flatMap((s, r) => [...s].map((ch, c) => ch === '#' ? [r, c] : null).filter(Boolean));
+  console.assert(analyse(T(['#...', '####', '#...'])).valid, '1-4-1 应能折');
+  console.assert(analyse(T(['###..', '..###'])).valid, '3-3 应能折');
+  console.assert(!analyse(T(['##..', '####'])).valid, '田字不能折');
+  console.assert(!analyse(T(['#.#', '###', '.#.'])).valid, '凹字不能折');
+  console.assert(!analyse(T(['#####', '#....'])).valid, '一行 5 个不能折');
+})();
+
+/* ---------- 垫子上摆纸片 ---------- */
+const orderOf = keys => keys.map(parse).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(p => key(...p));
+function drawEditor() {
+  const ed = $('editor');
+  ed.innerHTML = '';
+  const order = orderOf([...cells]);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const k = key(r, c), d = document.createElement('div');
+    d.className = 'cell' + (cells.has(k) ? ' on' : '');
+    d.textContent = cells.has(k) ? order.indexOf(k) + 1 : '';
+    d.setAttribute('role', 'button');
+    d.tabIndex = 0;
+    d.setAttribute('aria-label', `第 ${r + 1} 行第 ${c + 1} 列${cells.has(k) ? '，已放纸片' : ''}`);
+    d.onclick = () => toggle(k);
+    d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(k); } };
+    ed.appendChild(d);
+  }
+  const n = cells.size, ok = n === 6 && analyse([...cells].map(parse)).connected;
+  $('count').innerHTML = `${n}<small> / 6 块纸片</small>`;
+  $('countHint').textContent = n === 6 && !ok ? '6 块纸片要边挨着边连成一片。' : n === 6 ? '摆好了。先预测，再折起来。' : '点垫子上的格子放纸片，再点一次拿走。';
+  $('pYes').disabled = $('pNo').disabled = !ok;
+  $('foldBtn').disabled = !(ok && prediction !== null);
+  setStep(!ok ? 0 : prediction !== null ? 2 : 1);
+  $('stageHint').textContent = '';
+}
+function toggle(k) {
+  if (phase !== 'edit') return;
+  if (cells.has(k)) cells.delete(k); else if (cells.size < 6) cells.add(k);
+  setPrediction(null);
+  drawEditor();
+}
+function setPrediction(p) {
+  prediction = p;
+  $('pYes').classList.toggle('chosen', p === true);
+  $('pNo').classList.toggle('chosen', p === false);
+  $('foldBtn').disabled = !(p !== null && cells.size === 6);
+  if (p !== null) setStep(2);
+}
+function setStep(i) {
+  [...$('steps').children].forEach((li, j) => { li.className = j < i ? 'done' : j === i ? 'now' : ''; });
+}
+function randomNet() {
+  if (phase !== 'edit') backToEdit();
+  let list = ALL[Math.floor(Math.random() * ALL.length)];
+  if (Math.random() < .5) list = list.map(([r, c]) => [c, r]);
+  if (Math.max(...list.map(p => p[0])) + 1 > ROWS || Math.max(...list.map(p => p[1])) + 1 > COLS) list = list.map(([r, c]) => [c, r]);
+  const h = Math.max(...list.map(p => p[0])) + 1, w = Math.max(...list.map(p => p[1])) + 1;
+  const dr = Math.floor((ROWS - h) / 2), dc = Math.floor((COLS - w) / 2);
+  cells = new Set(list.map(([r, c]) => key(r + dr, c + dc)));
+  setPrediction(null);
+  drawEditor();
+  $('msg').innerHTML = '<p class="hint" style="margin:0">先别急着折。在脑子里试着把它折起来，然后做预测。</p>';
+}
+
+/* ---------- 折起来 ---------- */
+function buildScene() {
+  const scene = $('scene');
+  scene.innerHTML = '';
+  const list = Object.values(net.nodes);
+  const midR = (Math.min(...list.map(n => n.r)) + Math.max(...list.map(n => n.r)) + 1) / 2;
+  const midC = (Math.min(...list.map(n => n.c)) + Math.max(...list.map(n => n.c)) + 1) / 2;
+  const order = orderOf(Object.keys(net.nodes));
+  const make = k => {
+    const n = net.nodes[k], el = document.createElement('div');
+    el.className = 'face' + (net.clash.has(k) ? ' clash' : '') + (k === net.root ? ' root' : '');
+    el.innerHTML = `<div class="skin out">${order.indexOf(k) + 1}</div><div class="skin in"></div>`;
+    n.el = el;
+    if (n.dir) {
+      const [dr, dc] = n.dir;
+      el.style.left = dc * S + 'px';
+      el.style.top = dr * S + 'px';
+      el.style.transformOrigin = dc === 1 ? '0 50%' : dc === -1 ? '100% 50%' : dr === 1 ? '50% 0' : '50% 100%';
+    }
+    n.children.forEach(ck => el.appendChild(make(ck)));
+    return el;
+  };
+  const rootEl = make(net.root), rn = net.nodes[net.root];
+  net.ox = (rn.c - midC) * S; net.oy = (rn.r - midR) * S;
+  rootEl.style.left = net.ox + 'px';
+  rootEl.style.top = net.oy + 'px';
+  scene.appendChild(rootEl);
+  render();
+}
+function render() {
+  const e = t * t * (3 - 2 * t), a = 90 * e;
+  for (const k in net.nodes) {
+    const n = net.nodes[k];
+    if (!n.dir) continue;
+    const [dr, dc] = n.dir;
+    n.el.style.transform = dc === 1 ? `rotateY(${a}deg)` : dc === -1 ? `rotateY(${-a}deg)` : dr === 1 ? `rotateX(${-a}deg)` : `rotateX(${a}deg)`;
+    // 折起的面受光变暗，纸盒才有体积感
+    n.el.firstChild.style.filter = `brightness(${1 - .22 * Math.sin(a * Math.PI / 180)})`;
+  }
+  const cx = net.ox + S / 2, cy = net.oy + S / 2, scene = $('scene');
+  scene.style.transformOrigin = `${cx}px ${cy}px ${-S / 2}px`;
+  scene.style.transform = `translate3d(${-cx * e}px, ${-cy * e}px, ${S / 2 * e}px) rotateX(${-26 * e + userX}deg) rotateY(${34 * e + userY}deg)`;
+  $('shadow').style.opacity = e * .9;
+  $('slider').value = Math.round(t * 100);
+}
+function play(to) {
+  cancelAnimationFrame(anim);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const from = t, start = performance.now(), dur = reduce ? 1 : 1800 * Math.abs(to - from) + 1;
+  const step = now => {
+    const p = Math.min(1, (now - start) / dur);
+    t = from + (to - from) * p;
+    render();
+    if (p < 1) anim = requestAnimationFrame(step); else if (to === 1) reveal();
+  };
+  anim = requestAnimationFrame(step);
+}
+let revealed = false;
+function doFold() {
+  if (prediction === null || cells.size !== 6) return;
+  net = analyse([...cells].map(parse));
+  if (!net.connected) return;
+  phase = 'fold'; revealed = false; t = 0; userX = userY = 0;
+  $('editor').style.display = 'none';
+  $('viewport').style.display = 'block';
+  $('foldbar').style.display = 'flex';
+  $('pYes').disabled = $('pNo').disabled = $('foldBtn').disabled = true;
+  buildScene();
+  $('msg').innerHTML = '<p style="margin:0">正在折……也可以拖动下方滑块，一点一点地折。</p>';
+  $('stageHint').textContent = '折好后可以拖动纸盒，换个角度看。';
+  play(1);
+}
+function reveal() {
+  if (revealed) return;
+  revealed = true;
+  const right = prediction === net.valid;
+  records.push({ shape: [...cells].map(parse), pred: prediction, valid: net.valid, right });
+  drawLog();
+  $('msg').innerHTML = feedback(right);
+  setStep(records.length >= 6 ? 4 : 3);
+}
+function feedback(right) {
+  const set = net.set;
+  const head = right ? '预测正确' : '和你预测的不一样';
+  let body;
+  if (net.valid) {
+    body = (right ? '6 块纸片各占正方体的一个面，没有重叠。' : '其实它能折成正方体。展开图看起来零散，并不代表会撞在一起：每块纸片都绕着和邻居共用的那条折痕翻起来，6 块正好各占一个面。')
+      + `<br><br>再找一个规律：折好后相对的面是 <b style="display:inline">${oppositePairs()}</b>。回到展开图上看，相对的两块有没有挨着的？`;
+  } else if (has2x2(set)) {
+    body = '图形里有一个“田”字（2×2 的四块）。正方体的一个顶点只连着 3 个面，可“田”字中心那一点周围挤着 4 块，折起来必然有两块撞在一起（红色）。';
+  } else if (maxRun(set) >= 5) {
+    body = '有一行（或一列）连着 5 块。绕正方体一圈只有 4 个面，第 5 块会转回第 1 块的位置（红色）。';
+  } else {
+    body = '有两块折到了同一个面上（红色），同时另有一个面空着。常见情况是两块挂在同一侧，比如“凹”字形的两个角，翻起来落在同一个面上。';
+  }
+  if (!right && !net.valid) body = '你预测它能折成，但它不能。' + body;
+  return `<div class="fb ${right ? 'ok' : 'bad'}"><b>${head}</b>${body}</div>`;
+}
+function oppositePairs() {
+  const order = orderOf(Object.keys(net.nodes)), byFace = {};
+  order.forEach((k, i) => byFace[net.nodes[k].face] = i + 1);
+  return [[0, 1], [2, 3], [4, 5]].map(([a, b]) => `${byFace[a]} 和 ${byFace[b]}`).join('，');
+}
+function backToEdit() {
+  cancelAnimationFrame(anim);
+  phase = 'edit'; t = 0;
+  $('editor').style.display = 'grid';
+  $('viewport').style.display = 'none';
+  $('foldbar').style.display = 'none';
+  setPrediction(null);
+  drawEditor();
+}
+
+/* ---------- 记录 ---------- */
+function mini(shape) {
+  const s = 10, r0 = Math.min(...shape.map(p => p[0])), c0 = Math.min(...shape.map(p => p[1]));
+  const w = Math.max(...shape.map(p => p[1])) - c0 + 1, h = Math.max(...shape.map(p => p[0])) - r0 + 1;
+  return `<svg width="${w * s}" height="${h * s}" aria-hidden="true">` +
+    shape.map(([r, c]) => `<rect x="${(c - c0) * s}" y="${(r - r0) * s}" width="${s - 1}" height="${s - 1}" fill="#c9a274" stroke="#8a6a45" stroke-width=".8"/>`).join('') + '</svg>';
+}
+function drawLog() {
+  $('log').innerHTML = records.map((x, i) => `<tr><td class="num">${i + 1}</td><td>${mini(x.shape)}</td><td>${x.pred ? '能' : '不能'}</td><td style="color:${x.right ? 'var(--ok)' : 'var(--clash)'};font-weight:700">${x.valid ? '能' : '不能'} ${x.right ? '✓' : '✗'}</td></tr>`).join('');
+  const ok = records.filter(x => x.right).length;
+  $('score').textContent = records.length ? `预测对 ${ok} / ${records.length}` : '';
+}
+function copyAll() {
+  const lines = records.map((x, i) => `第${i + 1}题：预测${x.pred ? '能' : '不能'}，结果${x.valid ? '能' : '不能'}，${x.right ? '对' : '错'}`);
+  const text = `正方体展开图记录\n${lines.join('\n')}\n我的发现：${$('rule').value.trim() || '（未填写）'}`;
+  const done = () => $('copyHint').textContent = '已复制，可以粘贴到作业或聊天里。';
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { $('copyHint').textContent = '复制失败，请手动选中文字复制。'; } ta.remove(); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+}
+
+/* ---------- 事件 ---------- */
+$('startBtn').onclick = () => { $('cover').classList.add('gone'); randomNet(); };
+$('randBtn').onclick = randomNet;
+$('clearBtn').onclick = () => { if (phase !== 'edit') backToEdit(); cells.clear(); setPrediction(null); drawEditor(); };
+$('pYes').onclick = () => setPrediction(true);
+$('pNo').onclick = () => setPrediction(false);
+$('foldBtn').onclick = doFold;
+$('slider').oninput = e => { cancelAnimationFrame(anim); t = e.target.value / 100; render(); if (t === 1) reveal(); };
+$('playBtn').onclick = () => { t = 0; play(1); };
+$('backBtn').onclick = randomNet;
+$('copyBtn').onclick = copyAll;
+$('resetAll').onclick = () => { records.length = 0; drawLog(); $('rule').value = ''; $('copyHint').textContent = ''; cells.clear(); backToEdit(); $('msg').innerHTML = '<p class="hint" style="margin:0">先出一道题，再做预测。</p>'; };
+// 纸片边长随舞台大小变化：投影大屏上纸片也够大
+function fitS() {
+  const st = $('stage');
+  S = Math.max(48, Math.min(112, Math.floor(Math.min(st.clientWidth / 7, st.clientHeight / 5.2))));
+  document.documentElement.style.setProperty('--s', S + 'px');
+  if (phase === 'fold') buildScene();
+}
+$('bigBtn').onclick = () => { document.documentElement.classList.toggle('big'); fitS(); };
+addEventListener('resize', fitS);
+fitS();
+const vp = $('viewport');
+vp.addEventListener('pointerdown', e => { if (phase !== 'fold') return; vp.setPointerCapture(e.pointerId); vp._d = [e.clientX, e.clientY, userX, userY]; });
+vp.addEventListener('pointermove', e => { if (!vp._d) return; const [x, y, ux, uy] = vp._d; userY = uy + (e.clientX - x) * .4; userX = ux - (e.clientY - y) * .4; render(); });
+vp.addEventListener('pointerup', () => vp._d = null);
+drawEditor();
+</script>
+</body>
+</html>

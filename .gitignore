@@ -7,3 +7,5 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+# 3D 测试时生成的预览文件
+tests/out/

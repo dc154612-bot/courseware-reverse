@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D 教学页</title>
+<!--
+  3D 教学页骨架（three.js r160）
+  骨架负责画面质量：灯光、软阴影、色调、雾、移轴景深、镜头、标注、点选、面板、封面、窄屏、减少动态效果。
+  只改最下面“学科内容开始 / 结束”之间的部分。积木函数的用法见 references/04-build-3d.md。
+  联网时下面这行直接可用；交付前用 scripts/inline_three.py 或 3d-拼装器.html 生成断网可用的单文件。
+-->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<style>
+:root{
+  --ink:#1d2a33;--soft:#56646e;--main:#1f5a7a;--hl:#e0662a;--alt:#7b3fc4;--ok:#2f7a3a;--bad:#a63c2e;
+  --glass:rgba(250,252,253,.8);--edge:rgba(255,255,255,.9);
+  --title:"Songti SC","STSong","Noto Serif SC","Source Han Serif SC","SimSun",serif;
+  --hei:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
+}
+*{box-sizing:border-box}
+html{font-size:16px}html.big{font-size:20px}
+body{margin:0;background:#2c3f4a;color:var(--ink);font-family:var(--hei);line-height:1.65}
+button{font-family:var(--hei);font-size:1rem;padding:.45rem .95rem;min-height:44px;border-radius:12px;border:1.5px solid rgba(29,42,51,.22);background:rgba(255,255,255,.88);color:var(--ink);cursor:pointer}
+button:hover:not(:disabled){border-color:var(--main)}
+button:focus-visible{outline:3px solid var(--hl);outline-offset:2px}
+button.primary,button.chosen{background:var(--main);border-color:var(--main);color:#fff}
+button.good{background:#e3f3e9;border-color:var(--ok);opacity:1}
+button.wrong{background:#fbe6e3;border-color:var(--bad);opacity:1}
+button:disabled{opacity:.5;cursor:not-allowed}
+
+.app{position:relative;height:100vh;overflow:hidden}
+.world{position:absolute;inset:0;overflow:hidden}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:pan-y}
+#gl.pick{cursor:pointer}
+/* 移轴景深：上下两条带轻微模糊，像微缩沙盘 */
+.dof{position:absolute;inset:0;pointer-events:none;-webkit-backdrop-filter:blur(2.5px);backdrop-filter:blur(2.5px);
+  -webkit-mask-image:linear-gradient(180deg,#000 0,transparent 24%,transparent 74%,#000 100%);mask-image:linear-gradient(180deg,#000 0,transparent 24%,transparent 74%,#000 100%)}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.nogl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:26rem;padding:1rem 1.2rem;border-radius:14px;background:rgba(255,255,255,.9);text-align:center}
+
+.topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:.6rem;padding:1rem 1.2rem;z-index:3}
+.topbar h1{margin:0;flex:1;font-family:var(--title);font-size:2.2rem;line-height:1.1;display:flex;align-items:baseline;gap:.9rem;flex-wrap:wrap;text-shadow:0 1px 12px rgba(255,255,255,.6)}
+.topbar h1 small{font-family:var(--hei);font-size:.95rem;color:var(--soft)}
+.topbar button{background:var(--glass);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-color:var(--edge)}
+.panel{position:absolute;top:5rem;bottom:1rem;width:20rem;overflow:auto;z-index:2;padding:1.1rem 1.2rem;border-radius:18px;
+  background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);
+  border:1px solid var(--edge);box-shadow:0 30px 80px rgba(20,30,40,.25)}
+.panel.left{left:1rem}.panel.right{right:1rem}
+.panel h2{font-family:var(--title);font-size:1.2rem;margin:1rem 0 .4rem;color:var(--main)}
+.panel h2:first-child{margin-top:0}
+.panel p{margin:.4rem 0}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:.6rem 0}
+.opts.one{grid-template-columns:1fr}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+.hint{color:var(--soft);font-size:.92rem}
+.fb{border-left:4px solid var(--main);background:rgba(255,255,255,.75);padding:.6rem .8rem;border-radius:10px;margin-bottom:.5rem}
+.fb.ok{border-color:var(--ok)}.fb.bad{border-color:var(--bad)}
+.fb b{display:block;margin-bottom:.15rem}
+.big-num{font-family:var(--title);font-size:2.4rem;line-height:1;color:var(--main)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{border-bottom:1px solid rgba(29,42,51,.14);padding:.25rem;text-align:center}
+input[type=range]{width:100%;accent-color:var(--main)}
+textarea{width:100%;font-family:var(--hei);font-size:1rem;border:1px solid rgba(29,42,51,.22);border-radius:10px;padding:.5rem;min-height:4.5rem;background:rgba(255,255,255,.88)}
+.src{font-size:.875rem;color:var(--soft);margin:.8rem 0 0}
+.stagehint{position:absolute;top:5rem;left:22rem;right:22rem;text-align:center;z-index:1;pointer-events:none}
+.stagehint span{display:inline-block;padding:.35rem 1rem;border-radius:999px;background:rgba(255,255,255,.78);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-size:.95rem}
+
+/* 场景里的标注：HTML 文字跟着 3D 位置走，永远清晰 */
+.tag{position:absolute;left:0;top:0;padding:.05rem .65rem;border-radius:999px;background:#fff;border:2px solid var(--main);color:var(--main);font-weight:700;font-size:15px;white-space:nowrap;box-shadow:0 2px 8px rgba(20,30,40,.2);transition:opacity .3s}
+.tag.hl{background:var(--hl);border-color:var(--hl);color:#fff}
+.tag.alt{background:var(--alt);border-color:var(--alt);color:#fff}
+.tag.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.tag.dim{opacity:.25}
+.lbl{position:absolute;left:0;top:0;font-size:16px;font-weight:700;white-space:nowrap;color:#2b2218;text-shadow:0 0 3px #fff,0 0 9px #fff}
+.lbl.water{font-family:var(--title);font-weight:400;color:#0b4f86;letter-spacing:.3em}
+.lbl.light{color:#fff;text-shadow:0 1px 5px rgba(0,0,0,.6)}
+.card{position:absolute;left:0;top:0;z-index:2;width:16rem;padding:.6rem .8rem;border-radius:14px;background:rgba(255,255,255,.96);border:1.5px solid var(--main);box-shadow:0 12px 30px rgba(20,30,40,.3);font-size:.95rem;pointer-events:auto}
+.card h3{margin:0 0 .25rem;font-family:var(--title);font-size:1.2rem}
+.card button{float:right;min-height:30px;padding:.05rem .6rem;font-size:.85rem}
+
+.cover{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:2rem;color:#fff;
+  background:linear-gradient(180deg,rgba(10,20,30,0),rgba(10,20,30,.25) 40%,rgba(10,20,30,.8) 82%)}
+.cover > div{max-width:42rem}
+.cover small{font-size:1rem;opacity:.9;letter-spacing:.1em}
+.cover h2{font-family:var(--title);font-size:clamp(2.2rem,5vw,4.2rem);line-height:1.2;margin:.4rem 0 1rem;text-shadow:0 4px 30px rgba(0,0,0,.4)}
+.cover p{font-size:1.1rem;margin:0 0 2rem;opacity:.94}
+.cover button{font-size:1.15rem;padding:.75rem 2.2rem;border-radius:999px;background:#fff;color:var(--ink);border:none;font-weight:700}
+.cover.gone{display:none}
+
+@media (max-width:1100px){
+  .app{height:auto;overflow:visible;display:flex;flex-direction:column}
+  .topbar{position:relative;order:-2;background:var(--bar,#bcd7ea)}
+  .stagehint{position:relative;top:auto;left:auto;right:auto;order:-1;padding:0 1rem .5rem;background:var(--bar,#bcd7ea)}
+  .world{position:relative;height:min(64vh,78vw);min-height:320px}
+  .panel{position:relative;top:auto;bottom:auto;left:auto!important;right:auto!important;width:auto;margin:1rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="world" id="world"><canvas id="gl" aria-label="立体场景，可拖动转动，点选物体"></canvas><div class="dof"></div><div id="labels"></div></div>
+  <header class="topbar">
+    <h1><span id="ttl"></span> <small id="sub"></small></h1>
+    <button id="viewBtn">复位视角</button>
+    <button id="bigBtn" title="放大字号，便于投影">大屏</button>
+    <button id="resetAll">重置全部</button>
+  </header>
+  <div class="stagehint"><span id="hintTxt">按住拖动可以转动场景，滚轮缩放。</span></div>
+  <div class="panel left"><div id="task"></div></div>
+  <div class="panel right">
+    <div id="msg"></div>
+    <h2>我的记录</h2><div id="rec" class="hint">还没有记录。</div>
+    <h2>我的发现</h2><p class="hint" id="noteQ"></p>
+    <textarea id="note" placeholder="我发现……"></textarea>
+    <div class="row"><button id="copyBtn">复制记录与发现</button></div>
+    <p class="hint" id="copyHint"></p>
+    <p class="src"><span id="srcTxt"></span>3D 显示使用 three.js（MIT 许可）。</p>
+  </div>
+  <div class="cover" id="cover"><div>
+    <small id="coverTag"></small>
+    <h2 id="coverQ"></h2>
+    <p id="coverP"></p>
+    <button id="startBtn">开始</button>
+  </div></div>
+</div>
+
+<script>
+/* ==================== 骨架：一般不用改 ==================== */
+const $ = id => document.getElementById(id);
+// 学科内容出错时，在页面顶部显示原因，方便把这句话发回给 AI 修改
+function showErr(msg) {
+  let b = $('errBar'); if (!b) { b = document.createElement('div'); b.id = 'errBar'; b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99;padding:.6rem 1rem;background:#a63c2e;color:#fff;font-size:15px;line-height:1.5'; document.body.appendChild(b); }
+  b.textContent = `页面出错了：${msg}。把这句话发给 AI，请它修改“学科内容”部分。`;
+}
+window.addEventListener('error', e => showErr(e.message));
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const sm = v => { v = clamp(v, 0, 1); return v * v * (3 - 2 * v); };
+const lerp = (a, b, t) => a + (b - a) * t;
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const nz = (x, z) => Math.sin(x * 1.7 + z * .6) * .5 + Math.sin(x * .73 - z * 1.31 + 2) * .6 + Math.sin(x * 3.1 + z * 2.3) * .2 + Math.sin(x * 5.3 - z * 4.1) * .08;
+const C = s => new THREE.Color(s);
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const SKIES = {
+  day: ['#6fa6d8', '#a9cdea', '#dce9f0', '#eef0ea', '#dfe8ec'],
+  dawn: ['#8fb9df', '#bcd6e8', '#f1e6cf', '#e9dcc0', '#ece2c9'],
+  overcast: ['#a9b6c0', '#c7d0d6', '#dfe3e3', '#e8e8e3', '#dfe2e1'],
+  night: ['#0d1b33', '#1d3557', '#31527a', '#46668c', '#2a4466']
+};
+let renderer, scene, camera, gl3d = false, T = 0, covered = true;
+const S = { labels: [], pickables: [], update: [], H: () => 0, base: 20 };
+const VIEWS = {};
+const view = { az: .35, el: .5, z: 1, tx: 0, ty: .4, tz: 0 }, goal = { ...view };
+
+/* ---------- 积木：基本形状 ---------- */
+function mat(color, o = {}) {
+  return new THREE.MeshStandardMaterial({ color, roughness: o.rough ?? .85, metalness: o.metal ?? 0, flatShading: o.flat ?? true,
+    transparent: o.opacity != null, opacity: o.opacity ?? 1, emissive: o.glow || '#000', emissiveIntensity: o.glow ? .6 : 0, side: o.double ? THREE.DoubleSide : THREE.FrontSide });
+}
+function place(m, o = {}) {
+  m.position.set(o.x || 0, o.y ?? 0, o.z || 0); m.rotation.set(o.rx || 0, o.ry || 0, o.rz || 0);
+  if (o.s) m.scale.setScalar(o.s);
+  m.castShadow = o.shadow ?? true; m.receiveShadow = true;
+  (o.parent || scene).add(m); return m;
+}
+// 底面在 y 处：box、cyl、cone 的 y 指底面高度，ball 的 y 指球心
+const box = (w, h, d, color, o = {}) => place(new THREE.Mesh(new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0), mat(color, o)), o);
+const cyl = (rTop, rBot, h, color, o = {}) => place(new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, o.seg || 12).translate(0, h / 2, 0), mat(color, o)), o);
+const cone = (r, h, color, o = {}) => place(new THREE.Mesh(new THREE.ConeGeometry(r, h, o.seg || 10).translate(0, h / 2, 0), mat(color, o)), o);
+const ball = (r, color, o = {}) => place(new THREE.Mesh(new THREE.IcosahedronGeometry(r, o.detail ?? 2), mat(color, o)), o);
+// 旋转体：按轮廓 [[半径, 高度], ...] 转一圈，做瓶子、花盆、烧杯、细胞、果实
+const lathe = (profile, color, o = {}) => place(new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, h]) => new THREE.Vector2(r, h)), o.seg || 24), mat(color, { flat: false, ...o })), o);
+// 管子：沿一串点弯曲，做导线、血管、根、河道
+const tube = (pts, r, color, o = {}) => place(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => V3(...p))), 64, r, 8), mat(color, { flat: false, ...o })), o);
+const group = (o = {}) => place(new THREE.Group(), o);
+
+/* ---------- 积木：地形沙盘 ---------- */
+// ground({ w, d, height:(x,z)=>y, color:(x,y,z)=>'#hex', water:{ y, color }, layers:[{ depth, color, name }], base })
+// 生成一块地面，并把四边切开露出分层（像沙盘）；有 water 时低于水面的地方是水
+const DEFAULT_LAYERS = [{ depth: .06, color: '#6f9d45' }, { depth: .45, color: '#6b4a30', name: '土壤' }, { depth: .9, color: '#c9ab80', name: '沉积层' }, { depth: 99, color: '#6e6158', name: '基岩' }];
+function ground(o) {
+  const W = o.w || 10, D = o.d || 6, H = o.height || ((x, z) => .12 * nz(x * .5, z * .5)), base = o.base ?? -1.6, wy = o.water ? o.water.y : -1e9;
+  S.H = H; S.W = W; S.D = D;
+  const g = new THREE.PlaneGeometry(W, D, Math.round(W * 14), Math.round(D * 14)).rotateX(-Math.PI / 2), p = g.attributes.position, cols = [], c = new THREE.Color();
+  const autoColor = (x, y) => y < wy + .06 ? '#d8c792' : y > 2.6 ? '#eef2f5' : y > 1.6 ? '#8a8478' : null;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i), y = H(x, z); p.setY(i, y);
+    const pick = (o.color && o.color(x, y, z)) || autoColor(x, y);
+    if (pick) c.set(pick); else c.set('#7da04a').lerp(C('#a6b25c'), sm(y / 1.4));
+    c.offsetHSL(0, 0, nz(x * 4.1, z * 3.7) * .025); cols.push(c.r, c.g, c.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
+  m.receiveShadow = true; scene.add(m);
+  if (o.layers !== false) {
+    const layers = o.layers || DEFAULT_LAYERS;
+    const wall = (ax, az, bx, bz) => {
+      const n = 120, rows = 30, pos = [], wc = [], idx = [];
+      for (let j = 0; j <= rows; j++) for (let i = 0; i <= n; i++) {
+        const x = lerp(ax, bx, i / n), z = lerp(az, bz, i / n), top = Math.max(H(x, z), wy), y = lerp(base, top, j / rows);
+        pos.push(x, y, z);
+        if (y > H(x, z) + .001) c.set(o.water.color || '#2f7fc0'); else {
+          const d = H(x, z) - y; let L = layers[layers.length - 1];
+          for (const l of layers) if (d <= l.depth) { L = l; break; }
+          c.set(L.color).offsetHSL(0, 0, (Math.sin(x * 37 + y * 91) * .5) * .04);
+        }
+        wc.push(c.r, c.g, c.b);
+      }
+      for (let j = 0; j < rows; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i; idx.push(a, a + 1, a + n + 1, a + 1, a + n + 2, a + n + 1); }
+      const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      wg.setAttribute('color', new THREE.Float32BufferAttribute(wc, 3)); wg.setIndex(idx); wg.computeVertexNormals();
+      scene.add(new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide })));
+    };
+    wall(-W / 2, D / 2, W / 2, D / 2); wall(W / 2, D / 2, W / 2, -D / 2); wall(-W / 2, -D / 2, -W / 2, D / 2); wall(W / 2, -D / 2, -W / 2, -D / 2);
+    const bottom = new THREE.Mesh(new THREE.PlaneGeometry(W, D).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#3a322c' })); bottom.position.y = base; scene.add(bottom);
+    // 分层名称写在正面剖面上
+    let prev = 0; const lx = -W / 2 + .9;
+    for (const l of layers) { if (l.name) { const top = H(lx, D / 2), mid = top - (prev + Math.min(l.depth, top - base)) / 2; label(l.name, [lx, Math.max(mid, base + .2), D / 2 + .02], 'lbl light'); } prev = l.depth; }
+  }
+  if (o.water) {
+    const wg = new THREE.PlaneGeometry(W, D, 60, 36).rotateX(-Math.PI / 2);
+    const wm = new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ color: o.water.color || '#2f7fc0', roughness: .25, metalness: .1, transparent: true, opacity: .9 }));
+    wm.position.y = wy; scene.add(wm);
+    const wp = wg.attributes.position;
+    S.update.push((dt, t) => { for (let i = 0; i < wp.count; i++) wp.setY(i, Math.sin(wp.getX(i) * 2.2 + t * 1.3) * .015 + Math.sin(wp.getZ(i) * 2.7 + t * .9) * .012); wp.needsUpdate = true; });
+  }
+  return m;
+}
+const groundY = (x, z) => S.H(x, z);
+
+/* ---------- 积木：成批的东西 ---------- */
+// 成批摆放同一种形状：items = [{ x, z, y?, s?, ry?, color? }]；y 不写时自动贴地
+function scatter(geo, color, items, o = {}) {
+  const im = new THREE.InstancedMesh(geo, mat(color === 'vary' ? '#fff' : color, o), items.length), d = new THREE.Object3D();
+  items.forEach((it, i) => {
+    d.position.set(it.x, it.y ?? groundY(it.x, it.z), it.z); d.rotation.set(0, it.ry ?? rnd() * 6.28, 0); d.scale.setScalar(it.s || 1); d.updateMatrix();
+    im.setMatrixAt(i, d.matrix); if (it.color) im.setColorAt(i, C(it.color));
+  });
+  im.castShadow = o.shadow ?? true; im.receiveShadow = true; scene.add(im); return im;
+}
+// 树：trees([{ x, z, s?, kind:'round'|'pine' }])，大小颜色自动有差异
+function trees(list) {
+  const items = list.map(t => ({ ...t, s: t.s || (.6 + rnd() * .5), ry: rnd() * 6.28 }));
+  scatter(new THREE.CylinderGeometry(.05, .08, .5, 5).translate(0, .25, 0), '#6a4c32', items.map(t => ({ ...t, color: null })));
+  const r = items.filter(t => t.kind !== 'pine'), p = items.filter(t => t.kind === 'pine');
+  if (r.length) scatter(new THREE.IcosahedronGeometry(.32, 1).translate(0, .7, 0), 'vary', r.map(t => ({ ...t, color: C('#4e7a36').offsetHSL(0, 0, (rnd() - .5) * .12).getStyle() })));
+  if (p.length) scatter(new THREE.ConeGeometry(.28, .8, 7).translate(0, .75, 0), 'vary', p.map(t => ({ ...t, color: C('#2f5a33').offsetHSL(0, 0, (rnd() - .5) * .1).getStyle() })));
+}
+// 随机撒点：在 (x0..x1, z0..z1) 里撒 n 个，avoid(x,z) 返回 true 的地方跳过
+function spots(n, x0, x1, z0, z1, avoid) {
+  const out = []; let k = 0;
+  while (out.length < n && k++ < n * 20) { const x = lerp(x0, x1, rnd()), z = lerp(z0, z1, rnd()); if (!avoid || !avoid(x, z)) out.push({ x, z }); }
+  return out;
+}
+// 云：几个球拼成，会投影；drift 为真时慢慢飘
+function cloud(x, y, z, s = 1, drift = true) {
+  const g = group({ x, y, z });
+  [[0, 0, 0, .5], [.45, -.05, .1, .38], [-.45, -.05, -.05, .4], [.15, .2, -.1, .36], [-.2, .15, .15, .3]].forEach(([a, b, c, r]) => ball(r * s, '#fbfcfd', { x: a * s, y: b * s, z: c * s, parent: g, detail: 1 }));
+  if (drift) { const ph = rnd() * 6; S.update.push((dt, t) => { g.position.x = x + Math.sin(t * .08 + ph) * .5; }); }
+  return g;
+}
+// 雨：在 (x, z) 半径 r 的范围里，从 top 落到地面
+function rain(x, z, r, top = 3, n = 120) {
+  const drops = Array.from({ length: n }, () => { const a = rnd() * 6.28, d = Math.sqrt(rnd()) * r; return { x: x + Math.cos(a) * d, z: z + Math.sin(a) * d, y: top * rnd() }; });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(n * 6), 3));
+  const ls = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#7aa7cc', transparent: true, opacity: .7 })); scene.add(ls);
+  const step = dt => { const p = g.attributes.position; drops.forEach((d, i) => { d.y -= dt * 4; const gy = Math.max(groundY(d.x, d.z), 0); if (d.y < gy) d.y = top; p.setXYZ(i * 2, d.x, d.y, d.z); p.setXYZ(i * 2 + 1, d.x, d.y - .18, d.z); }); p.needsUpdate = true; };
+  step(0); S.update.push(step); return ls;
+}
+
+/* ---------- 积木：流动箭头（物质、能量、水、电流、信息的去向） ---------- */
+// const a = arrow([[x,y,z], ...], { name:'蒸发', tag:'A', r:.05 })；a.set('hl' | 'alt' | 'ok' | 'dim' | '')；a.speed(倍数)
+const STATE_COL = { '': null, hl: '#ff6a13', alt: '#7b3fc4', ok: '#2f7a3a', dim: null };
+function arrow(pts, o = {}) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(p => V3(...p))), r = o.r || .05, base = o.color || '#3b8fd0';
+  const m = new THREE.MeshStandardMaterial({ color: base, emissive: base, emissiveIntensity: .25, roughness: .4, transparent: true });
+  const g = new THREE.Group(); scene.add(g);
+  const body = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, r, 10), m); body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(r * 2.6, r * 6, 14), m);
+  head.position.copy(curve.getPoint(1)); head.quaternion.setFromUnitVectors(V3(0, 1, 0), curve.getTangent(1)); g.add(head);
+  const n = Math.max(6, Math.round(curve.getLength() * 4)), dots = new THREE.InstancedMesh(new THREE.SphereGeometry(r * .8, 8, 6), new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: .9 }), n);
+  g.add(dots);
+  const a = { g, m, curve, phase: 0, sp: 1, st: '', base, tag: null };
+  if (o.tag || o.name) a.tag = label(o.tag || o.name, curve.getPoint(o.at ?? .5).add(V3(0, r + .22, 0)).toArray(), 'tag');
+  const d = new THREE.Object3D(), len = curve.getLength();
+  const step = (dt, t) => {
+    a.phase = (a.phase + dt * .5 * a.sp / len * 3) % 1;
+    for (let i = 0; i < n; i++) { curve.getPointAt((i / n + a.phase) % 1, d.position); d.updateMatrix(); dots.setMatrixAt(i, d.matrix); }
+    dots.instanceMatrix.needsUpdate = true;
+    if (a.st === 'hl' || a.st === 'alt') m.emissiveIntensity = .45 + .35 * Math.sin(t * (a.st === 'hl' ? 5 : 2.5));
+  };
+  step(0, 0); S.update.push(step);
+  a.set = st => {
+    a.st = st; const col = STATE_COL[st] || a.base;
+    m.color.set(col); m.emissive.set(col); m.emissiveIntensity = st ? .5 : .25; m.opacity = st === 'dim' ? .18 : 1;
+    dots.visible = st !== 'dim';
+    if (a.tag) a.tag.set(st);
+  };
+  a.speed = k => { a.sp = k; };
+  return a;
+}
+
+/* ---------- 积木：标注、点选、接触阴影 ---------- */
+// label('海洋', [x,y,z], 'lbl water')；返回的对象有 .set('hl'|'alt'|'ok'|'dim'|'') 和 .text('新文字')
+function label(text, pos, cls = 'lbl') {
+  const el = document.createElement('div'); el.className = cls; el.innerHTML = text; $('labels').appendChild(el);
+  const l = { el, p: Array.isArray(pos) ? V3(...pos) : pos, cls };
+  l.set = st => { el.className = cls + (st ? ' ' + st : ''); };
+  l.text = t => { el.innerHTML = t; };
+  S.labels.push(l); return l;
+}
+const tag = (text, pos) => label(text, pos, 'tag');
+// pickable(物体, { title, text })：点中这个物体时调用学科内容里的 onPick(info)
+function pickable(obj, info) { obj.userData.info = info; S.pickables.push(obj); return obj; }
+let blobTex;
+function blobShadow(x, z, r, o = .35) {
+  blobTex ||= (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(r * 2, r * 2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, opacity: o, depthWrite: false }));
+  m.position.set(x, groundY(x, z) + .015, z); scene.add(m); return m;
+}
+// 每帧都要动的东西：animate((dt, t) => { ... })；系统设置了减少动态效果时不会运行
+const animate = f => S.update.push(f);
+
+/* ---------- 面板 ---------- */
+const ui = {
+  task: h => { $('task').innerHTML = h; },
+  msg: h => { $('msg').innerHTML = h; },
+  rec: h => { $('rec').innerHTML = h || '还没有记录。'; $('rec').className = h ? '' : 'hint'; },
+  hint: t => { $('hintTxt').textContent = t; }
+};
+// 面板里的按钮写成 <button data-act="choose" data-v="1">，点击时调用 ACTIONS.choose('1')
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+  const f = ACTIONS[b.dataset.act]; if (f) { f(b.dataset.v, b); }
+});
+document.addEventListener('input', e => {
+  const b = e.target.closest('[data-input]'); if (!b) return;
+  const f = ACTIONS[b.dataset.input]; if (f) f(b.value, b);
+});
+
+/* ---------- 镜头 ---------- */
+// focus('视角名')：转到 SCENE.views 里的预设视角
+function focus(name) {
+  const v = VIEWS[name]; if (!v || covered) return;
+  Object.assign(goal, { az: v.az, el: v.el, z: v.z, tx: v.t[0], ty: v.t[1], tz: v.t[2] });
+  if (RM) Object.assign(view, goal);
+}
+function fitDist() {
+  const w = $('world').clientWidth, desk = innerWidth > 1100, [SW, SH] = SCENE.size || [10, 5];
+  const L = document.querySelector('.panel.left').getBoundingClientRect(), R = document.querySelector('.panel.right').getBoundingClientRect();
+  const freeW = desk ? Math.max(300, R.left - L.right - 20) : w, t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  return Math.max(SW / 2 / (t * camera.aspect) * (w / freeW), SH / 2 / t) * 1.05;
+}
+function resize() {
+  if (!gl3d) return;
+  const w = $('world').clientWidth, h = $('world').clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); S.base = fitDist();
+  const desk = innerWidth > 1100, L = document.querySelector('.panel.left').getBoundingClientRect(), R = document.querySelector('.panel.right').getBoundingClientRect();
+  camera.setViewOffset(w, h, desk ? -((L.right + R.left) / 2 - w / 2) : 0, 0, w, h); // 画面中心放在两块面板中间
+}
+
+/* ---------- 启动 ---------- */
+function setupPage() {
+  document.title = SCENE.title;
+  $('ttl').textContent = SCENE.title; $('sub').textContent = SCENE.subtitle || '';
+  const cv = SCENE.cover || {};
+  $('coverTag').textContent = cv.tag || ''; $('coverQ').innerHTML = cv.q || SCENE.title; $('coverP').textContent = cv.p || ''; $('startBtn').textContent = cv.btn || '开始';
+  $('noteQ').textContent = SCENE.noteQ || '做完后写下你的发现。';
+  $('srcTxt').textContent = (SCENE.source || '') + ' ';
+  const th = SCENE.theme || {}, r = document.documentElement.style;
+  if (th.main) r.setProperty('--main', th.main); if (th.hl) r.setProperty('--hl', th.hl);
+  const sky = SKIES[SCENE.sky] || SKIES.day;
+  $('world').style.background = `linear-gradient(180deg,${sky[0]} 0%,${sky[1]} 36%,${sky[2]} 66%,${sky[3]} 100%)`;
+  r.setProperty('--bar', sky[1]);
+  Object.assign(VIEWS, { overview: { az: .3, el: .5, z: 1, t: [0, .4, 0] } }, SCENE.views || {});
+}
+function buildScene() {
+  renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = SCENE.sky === 'night' ? .9 : 1.05;
+  scene = new THREE.Scene();
+  const sky = SKIES[SCENE.sky] || SKIES.day;
+  scene.fog = new THREE.Fog(sky[4], 20, 60);
+  camera = new THREE.PerspectiveCamera(32, 1, .1, 300);
+  // 灯光：天光（上冷下暖）+ 一盏斜上方的暖色主光，投软阴影
+  scene.add(new THREE.HemisphereLight(SCENE.sky === 'night' ? '#7f9cc8' : '#e4f0ff', '#a08866', SCENE.sky === 'night' ? .5 : .85));
+  const sun = new THREE.DirectionalLight(SCENE.sky === 'night' ? '#c8d8ff' : '#fff0d8', SCENE.sky === 'night' ? 1.2 : 3);
+  const [SW] = SCENE.size || [10, 5];
+  sun.position.set(-SW * .6, SW * .8, SW * .5); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -SW, right: SW, top: SW, bottom: -SW, near: .5, far: SW * 4 });
+  sun.shadow.bias = -.0004; sun.shadow.normalBias = .02; scene.add(sun);
+  gl3d = true;
+  try { buildSubject(); } catch (err) { console.error(err); showErr('搭场景时出错（buildSubject）：' + err.message); }
+}
+let last = performance.now();
+const tmp = new THREE.Vector3();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt;
+  if (!RM) S.update.forEach(f => f(dt, T));
+  if (covered && !RM) goal.az = VIEWS.overview.az + Math.sin(T * .15) * .35;
+  const k = RM ? 1 : 1 - Math.pow(.002, dt);
+  for (const p of ['az', 'el', 'z', 'tx', 'ty', 'tz']) view[p] += (goal[p] - view[p]) * k;
+  const d = S.base * view.z;
+  scene.fog.near = d + 4; scene.fog.far = d + 40;
+  camera.position.set(view.tx + d * Math.sin(view.az) * Math.cos(view.el), view.ty + d * Math.sin(view.el), view.tz + d * Math.cos(view.az) * Math.cos(view.el));
+  camera.lookAt(view.tx, view.ty, view.tz);
+  renderer.render(scene, camera);
+  const w = $('world').clientWidth, h = $('world').clientHeight;
+  for (const l of S.labels) {
+    tmp.copy(l.p).project(camera);
+    l.el.style.visibility = tmp.z < 1 ? 'visible' : 'hidden';
+    l.el.style.transform = `translate(${(tmp.x * .5 + .5) * w}px,${(-tmp.y * .5 + .5) * h}px) translate(-50%,-50%)`;
+  }
+  requestAnimationFrame(frame);
+}
+function initControls() {
+  const cv = $('gl'), ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let drag = null;
+  const pickAt = e => {
+    if (!S.pickables.length) return null;
+    const r = cv.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+    ray.setFromCamera(ndc, camera); const hit = ray.intersectObjects(S.pickables, true)[0];
+    let o = hit && hit.object; while (o && !o.userData.info) o = o.parent; return o ? o.userData.info : null;
+  };
+  cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, touch: e.pointerType === 'touch' }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => {
+    if (!drag) { cv.classList.toggle('pick', !!pickAt(e)); return; }
+    goal.az = clamp(goal.az - (e.clientX - drag.x) * .005, -1.3, 1.3);
+    if (!drag.touch) goal.el = clamp(goal.el + (e.clientY - drag.y) * .004, .08, 1.25);
+    drag.x = e.clientX; drag.y = e.clientY;
+  });
+  cv.addEventListener('pointerup', e => { if (drag && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) { const info = pickAt(e); if (info && typeof onPick === 'function') onPick(info); } drag = null; });
+  cv.addEventListener('wheel', e => { e.preventDefault(); goal.z = clamp(goal.z * (1 + e.deltaY * .001), .25, 1.6); }, { passive: false });
+}
+function start() {
+  setupPage();
+  try { buildScene(); } catch (err) {
+    console.error(err);
+    $('world').insertAdjacentHTML('beforeend', '<div class="nogl">这台电脑的浏览器无法显示 3D 场景。请换用新版 Chrome 或 Edge 打开；题目和记录仍可使用。</div>');
+  }
+  Object.assign(goal, { az: VIEWS.overview.az, el: VIEWS.overview.el, z: VIEWS.overview.z, tx: VIEWS.overview.t[0], ty: VIEWS.overview.t[1], tz: VIEWS.overview.t[2] });
+  Object.assign(view, goal);
+  fresh(); render();
+  $('startBtn').onclick = () => { $('cover').classList.add('gone'); covered = false; render(); };
+  $('bigBtn').onclick = () => { document.documentElement.classList.toggle('big'); resize(); };
+  $('viewBtn').onclick = () => { if (typeof currentView === 'function') focus(currentView()); else focus('overview'); };
+  $('resetAll').onclick = () => { fresh(); $('note').value = ''; $('copyHint').textContent = ''; focus('overview'); render(); };
+  $('copyBtn').onclick = () => {
+    const text = `${SCENE.title}\n${$('rec').innerText}\n我的发现：${$('note').value.trim() || '（未填写）'}`;
+    const done = () => $('copyHint').textContent = '已复制，可以粘贴到作业或聊天里。';
+    const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { $('copyHint').textContent = '复制失败，请手动选中文字复制。'; } ta.remove(); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  };
+  if (gl3d) { initControls(); resize(); new ResizeObserver(resize).observe($('world')); requestAnimationFrame(frame); }
+}
+</script>
+
+<script>
+/* ===== 学科内容开始 ===== */
+// 示例：水循环读图（只演示积木怎么用）。换课时，整段替换成新的内容，结构保持不变：
+// SCENE 配置 → buildSubject() 搭场景 → fresh() 初始状态 → render() 刷新面板和场景 → ACTIONS 按钮动作 → onPick() 点选
+
+const SCENE = {
+  title: '水循环',
+  subtitle: '高中地理，读图识环节',
+  sky: 'day',                        // day 晴天 / dawn 清晨 / overcast 阴天 / night 夜晚
+  size: [12, 5],                     // 场景大致宽、高，用来算镜头距离
+  theme: { main: '#0d4f86', hl: '#ff6a13' },
+  cover: { tag: '高中地理', q: '一滴水离开海面，<br>要走多远才回来？', p: '先在立体沙盘上认出水循环的环节，答错时会在图上标出你选的那个。', btn: '开始读图' },
+  noteQ: '怎样从图上分辨“蒸发”和“降水”？',
+  source: '示例内容，仅演示骨架用法。',
+  views: {                           // az 水平角、el 仰角、z 远近（1 = 全景）、t 看向的点
+    overview: { az: .25, el: .45, z: 1, t: [0, .8, 0] },
+    A: { az: -.3, el: .35, z: .7, t: [-3, 1.2, 0] },
+    B: { az: .3, el: .35, z: .7, t: [2.5, 1.8, 0] },
+    C: { az: .1, el: .6, z: .75, t: [0, .4, .5] }
+  }
+};
+
+const LINKS = {
+  A: { name: '蒸发', how: '起点在水面，箭头朝上。' },
+  B: { name: '降水', how: '起点在云，箭头朝下。' },
+  C: { name: '地表径流', how: '在地面上，顺着坡流向海洋。' }
+};
+let ARW = {};
+
+function buildSubject() {
+  // 西边是海，东边是山：用高度函数描述地形
+  const H = (x, z) => -.35 + .9 * sm((x + 1.5) / 2) + 2.4 * Math.exp(-(((x - 4) / 1.6) ** 2)) * (.8 + .2 * Math.sin(z)) + .06 * nz(x, z);
+  ground({ w: 12, d: 5, height: H, water: { y: 0, color: '#2f7fc0' } });
+  label('海　洋', [-4.2, .05, 1.5], 'lbl light');
+  label('山地', [4, 2.9, -1], 'lbl');
+  trees(spots(80, -.5, 5.8, -2.4, 2.4, (x, z) => H(x, z) < .15 || H(x, z) > 2));
+  cloud(-3.2, 3.3, -.5, 1.2); cloud(2.6, 3.6, -.3, 1.4);
+  rain(2.6, -.3, .8, 3.2);
+  ARW.A = arrow([[-3.5, .1, .8], [-3.4, 1.6, .5], [-3.2, 2.9, -.3]], { tag: 'A' });
+  ARW.B = arrow([[2.4, 3.1, .3], [2.6, 2, .5], [2.7, .9, .6]], { tag: 'B' });
+  ARW.C = arrow([[1.5, H(1.5, 1.2) + .08, 1.2], [0, H(0, 1.4) + .08, 1.4], [-1.6, .1, 1.5]], { tag: 'C' });
+}
+
+let state;
+function fresh() { state = { order: ['A', 'B', 'C'], i: 0, ans: {} }; }
+function currentView() { return state.order[state.i] || 'overview'; }
+
+function render() {
+  const k = state.order[state.i];
+  if (k) {
+    const opts = Object.values(LINKS).map(l => l.name);
+    const a = state.ans[k];
+    ui.task(`<h2>读图识环节 ${state.i + 1}/${state.order.length}</h2>
+      <p>沙盘上橙色闪动的箭头 <b>${k}</b> 代表哪个环节？</p>
+      <div class="opts one">${opts.map(o => `<button data-act="choose" data-v="${o}" ${a ? 'disabled' : ''} class="${a ? (o === LINKS[k].name ? 'good' : o === a ? 'wrong' : '') : ''}">${o}</button>`).join('')}</div>
+      ${a ? '<button class="primary" data-act="next" style="width:100%">下一题</button>' : ''}`);
+    if (!a) ui.msg('<p class="hint">看箭头的起点、终点和方向，再作答。</p>');
+    else if (a === LINKS[k].name) ui.msg(`<div class="fb ok"><b>✓ 对，是${a}</b>${LINKS[k].how}</div>`);
+    else {
+      const wrongKey = Object.keys(LINKS).find(x => LINKS[x].name === a);
+      ui.msg(`<div class="fb bad"><b>✗ 这是${LINKS[k].name}，不是${a}</b>${LINKS[k].how}紫色箭头是“${a}”所在的位置，比一比方向。</div>`);
+      state.alt = wrongKey;
+    }
+  } else {
+    ui.task('<h2>完成</h2><p>三个环节都读完了。拖动沙盘，自己再找一遍水从海洋出发、回到海洋的路线。</p>');
+  }
+  // 场景跟着题目变：被问的箭头橙色闪动，答错时选的那个变紫，其余变淡
+  for (const x in ARW) ARW[x].set(!k ? '' : x === k ? (state.ans[k] ? 'ok' : 'hl') : state.ans[k] && x === state.alt ? 'alt' : 'dim');
+  const done = Object.entries(state.ans);
+  ui.rec(done.length ? `<table><tr><th>箭头</th><th>我的答案</th><th>正确</th></tr>${done.map(([x, a]) => `<tr><td>${x}</td><td>${a}</td><td>${a === LINKS[x].name ? '✓' : LINKS[x].name}</td></tr>`).join('')}</table>` : '');
+  focus(currentView());
+}
+
+const ACTIONS = {
+  choose(v) { state.ans[state.order[state.i]] = v; state.alt = null; render(); },
+  next() { state.i++; state.alt = null; render(); }
+};
+
+function onPick(info) { ui.msg(`<div class="fb"><b>${info.title}</b>${info.text}</div>`); }
+/* ===== 学科内容结束 ===== */
+start();
+</script>
+</body>
+</html>

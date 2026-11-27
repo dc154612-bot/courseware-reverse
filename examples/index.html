@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>课件样例库</title>
+<style>
+:root {
+  --paper: #f4efe4; --card: #fffdf8; --ink: #2a241c; --mute: #6b6153; --line: #ddd3c2;
+  --accent: #a4462a; --tag: #ece4d4;
+  --serif: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif;
+  --sans: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #1c1a17; --card: #26231f; --ink: #eee6d8; --mute: #a89d8c; --line: #3a352e; --accent: #e08a6a; --tag: #322d27; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.7 var(--sans); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 48px 24px 64px; }
+header { display: grid; grid-template-columns: 1fr minmax(0, 420px); gap: 32px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 24px; }
+h1 { font: 700 44px/1.15 var(--serif); margin: 0; letter-spacing: .04em; }
+h1 small { display: block; font: italic 15px/1.6 var(--serif); color: var(--accent); letter-spacing: .1em; margin-bottom: 8px; }
+header p { margin: 0; color: var(--mute); }
+.how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 28px 0 40px; }
+.how div { border-left: 3px solid var(--accent); padding-left: 14px; }
+.how b { font-family: var(--serif); font-size: 18px; display: block; }
+.how span { color: var(--mute); font-size: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 30px -18px rgba(60, 40, 10, .35); }
+.card a.shot { display: block; aspect-ratio: 16 / 10; overflow: hidden; border-bottom: 1px solid var(--line); }
+.card img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .4s; }
+.card a.shot:hover img { transform: scale(1.03); }
+.body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.top { display: flex; align-items: baseline; gap: 10px; }
+.no { font: italic 600 15px var(--serif); color: var(--accent); }
+h2 { font: 700 22px/1.3 var(--serif); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.meta span { background: var(--tag); border-radius: 3px; padding: 1px 8px; font-size: 13px; color: var(--mute); }
+.meta .d3 { background: var(--accent); color: #fff; }
+dl { margin: 0; display: grid; grid-template-columns: 4.5em 1fr; gap: 4px 8px; font-size: 14px; }
+dt { color: var(--mute); }
+dd { margin: 0; }
+.note { font-size: 13px; color: var(--mute); border-top: 1px dashed var(--line); padding-top: 8px; margin-top: auto; }
+.open { align-self: flex-start; color: #fff; background: var(--ink); text-decoration: none; padding: 7px 16px; border-radius: 4px; font-size: 14px; }
+.open:hover, .open:focus-visible { background: var(--accent); }
+footer { margin-top: 48px; border-top: 1px solid var(--line); padding-top: 20px; font-size: 13px; color: var(--mute); }
+footer li { margin: 4px 0; }
+@media (max-width: 760px) {
+  .wrap { padding: 28px 16px 48px; }
+  header { grid-template-columns: 1fr; gap: 12px; }
+  h1 { font-size: 34px; }
+  .how { grid-template-columns: 1fr; gap: 14px; }
+  .grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .card img { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><small>Courseware Gallery</small>课件样例库</h1>
+    <p>7 个已经做好的互动课件，双击就能打开，不联网也能用。先看看效果，再决定自己的课要做成什么样。</p>
+  </header>
+
+  <section class="how" aria-label="怎么用">
+    <div><b>1. 打开看看</b><span>点图片或“打开课件”，像学生一样把每道题做一遍，包括故意答错一次。</span></div>
+    <div><b>2. 挑一个当参照</b><span>对 AI 说：“照样例 05 的做法，做一个讲××的课件。”说清楚学科、知识点、学生常错在哪。</span></div>
+    <div><b>3. 上课前核对</b><span>样例里的知识内容和数值都是示意，用到课上之前请任课老师核对。</span></div>
+  </section>
+
+  <main class="grid">
+    <article class="card">
+      <a class="shot" href="01-正方体展开图.html"><img src="thumbs/01-正方体展开图.jpg" alt="纸盒工坊：绿色裁纸垫上摆着六格牛皮纸展开图" loading="lazy"></a>
+      <div class="body">
+        <div class="top"><span class="no">01</span><h2>纸盒工坊：正方体展开图</h2></div>
+        <div class="meta"><span>高中数学</span><span>2D</span><span>27 KB</span></div>
+        <dl>
+          <dt>画面</dt><dd>绿色裁纸垫、牛皮纸、折痕虚线</dd>
+          <dt>学生做</dt><dd>摆出六格图形，先预测能否折成，再看纸盒折起来</dd>
+          <dt>值得学</dt><dd>重叠的面标红；针对“田”字、一行 5 个、“凹”字三类错因给反馈</dd>
+        </dl>
+        <a class="open" href="01-正方体展开图.html">打开课件</a>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="shot" href="02-孟德尔分离定律.html"><img src="thumbs/02-孟德尔分离定律.jpg" alt="豌豆试验田：山坡上的 3D 试验田，田头摆着亲本陶盆" loading="lazy"></a>
+      <div class="body">
+        <div class="top"><span class="no">02</span><h2>豌豆试验田：分离定律</h2></div>
+        <div class="meta"><span>高中生物</span><span class="d3">3D</span><span>700 KB</span></div>
+        <dl>
+          <dt>画面</dt><dd>清晨山坡、木栅栏、三块起垄的试验田</dd>
+          <dt>学生做</dt><dd>三块田：纯种杂交 → F1 自交 → 种多少株才够；每块田先写预测再种</dd>
+          <dt>值得学</dt><dd>点任意一株看配子来源；F2 重新出现的矮茎用橙圈标出；400 株能种满一块田</dd>
+        </dl>
+        <a class="open" href="02-孟德尔分离定律.html">打开课件</a>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="shot" href="03-开关与逻辑门.html"><img src="thumbs/03-开关与逻辑门.jpg" alt="配电盘：胡桃木底板上的闸刀开关、电池和白炽灯" loading="lazy"></a>
+      <div class="body">
+        <div class="top"><span class="no">03</span><h2>配电盘：开关与逻辑门</h2></div>
+        <div class="meta"><span>信息技术</span><span>2D</span><span>24 KB</span></div>
+        <dl>
+          <dt>画面</dt><dd>老式配电盘：胡桃木、黄铜导线、闸刀开关、白炽灯</dd>
+          <dt>学生做</dt><dd>串联、并联、继电器：先填真值表预测，再拨开关逐行验证</dd>
+          <dt>值得学</dt><dd>通电时导线发光流动；最后用生活情境题区分与、或、非</dd>
+        </dl>
+        <a class="open" href="03-开关与逻辑门.html">打开课件</a>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="shot" href="04-一个神经元.html"><img src="thumbs/04-一个神经元.jpg" alt="瑞士海报风格：巨大的公式和 7×7 权重格" loading="lazy"></a>
+      <div class="body">
+        <div class="top"><span class="no">04</span><h2>一个神经元：它真的认识竖线吗</h2></div>
+        <div class="meta"><span>信息技术 · AI 初步</span><span>2D</span><span>24 KB</span></div>
+        <dl>
+          <dt>画面</dt><dd>瑞士海报：大号实时公式，正权重蓝、负权重橙</dd>
+          <dt>学生做</dt><dd>先猜会不会亮，再自己画权重，最后发现一个神经元做不到</dd>
+          <dt>值得学</dt><dd>用一个反例引出“只认位置不认形状”，自然过渡到多层网络</dd>
+        </dl>
+        <a class="open" href="04-一个神经元.html">打开课件</a>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="shot" href="05-水循环读图.html"><img src="thumbs/05-水循环读图.jpg" alt="水循环：切开露出岩层的 3D 沙盘，有海洋、城市、森林和雪山" loading="lazy"></a>
+      <div class="body">
+        <div class="top"><span class="no">05</span><h2>水循环：读图与城市化</h2></div>
+        <div class="meta"><span>高中地理</span><span class="d3">3D</span><span>700 KB</span></div>
+        <dl>
+          <dt>画面</dt><dd>立体沙盘：海洋、河流、城市、森林、雪山，前面切开露出含水层</dd>
+          <dt>学生做</dt><dd>读闪动的箭头说出环节名称；预测城市化对径流、下渗的影响，再拖滑块验证</dd>
+          <dt>值得学</dt><dd>每道题镜头自动转过去；答错时把学生选的环节用另一种颜色标出来对比</dd>
+        </dl>
+        <a class="open" href="05-水循环读图.html">打开课件</a>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="shot" href="06-串联与并联.html"><img src="thumbs/06-串联与并联.jpg" alt="并联电路板：两条支路各有开关和灯泡，三个测量点显示电流读数" loading="lazy"></a>
+      <div class="body">
+        <div class="top"><span class="no">06</span><h2>实验台：串联与并联</h2></div>
+        <div class="meta"><span>初中物理</span><span class="d3">3D</span><span>700 KB</span></div>
+        <dl>
+          <dt>画面</dt><dd>木桌实验台，串联、并联两块电路板，闸刀开关、灯泡、电流表测量点</dd>
+          <dt>学生做</dt><dd>8 道题，都先预测再动手：拆灯、断开支路开关和干路开关、测三处电流、判断生活里的电路；做完可以自由开合开关、拆装灯泡</dd>
+          <dt>值得学</dt><dd>电流和亮度按电路算出来，不是写死的；两盏灯规格不同，破除“电流被灯用掉”“支路电流一定相等”；每个错误选项都有对应的反馈</dd>
+        </dl>
+        <p class="note">按“3D 提示词 + 拼装器”做的，学科内容约 250 行，见技能包里的 <code>tests/sample-reply-circuit.md</code>。</p>
+        <a class="open" href="06-串联与并联.html">打开课件</a>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="shot" href="07-八音长廊.html"><img src="thumbs/07-八音长廊.jpg" alt="八音长廊：红毯铺地的 3D 展廊，两侧是乐器展台" loading="lazy"></a>
+      <div class="body">
+        <div class="top"><span class="no">07</span><h2>八音长廊</h2></div>
+        <div class="meta"><span>四年级音乐</span><span class="d3">3D</span><span>700 KB</span></div>
+        <dl>
+          <dt>画面</dt><dd>红毯展廊，金石土革丝木匏竹八个展区</dd>
+          <dt>学生做</dt><dd>先在长廊里走一遍、试听；再“听音找展区”，听一个声音走到对应展区作答</dd>
+          <dt>值得学</dt><dd>选错时指出差在“发声方式”还是“余音长短”；结束时列出最容易混淆的类别</dd>
+        </dl>
+        <p class="note">学习一个抖音课件后重做的版本，只供学习参考，别照着它再做一个长廊。</p>
+        <a class="open" href="07-八音长廊.html">打开课件</a>
+      </div>
+    </article>
+  </main>
+
+  <footer>
+    <ul>
+      <li>都是单个 HTML 文件，不联网也能打开。3D 的几个要求浏览器支持 WebGL（近几年的电脑都支持），已在 Chrome 内核浏览器上测过，没有在教室一体机上测过。</li>
+      <li>01～05 的设计思路参考 WeduLab（wedulab.com）公开页面，只学交互和视觉机制；代码、文字和图形都是自己写的。原站禁止商用，这些样例也只用于非商业教学。</li>
+      <li>3D 显示使用 three.js（MIT 许可），已内嵌在文件里。</li>
+    </ul>
+  </footer>
+</div>
+</body>
+</html>

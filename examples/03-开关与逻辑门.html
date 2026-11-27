@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>配电盘：开关会思考吗</title>
+<style>
+:root{
+  --walnut:#3a2619;--walnut-2:#4a3121;--brass:#c8a15a;--brass-dark:#8c6a2e;--brass-hi:#ecd28f;
+  --bakelite:#221b16;--enamel:#ede6d3;--enamel-2:#e2d8bf;--ink:#2a2420;--ink-soft:#6b5d4f;
+  --copper:#9c6b3f;--hot:#ffcf6b;--ok:#3f7a3a;--bad:#a33a2a;
+  --song:"Songti SC","STSong","Noto Serif SC","Source Han Serif SC","SimSun",serif;
+  --didot:"Didot","Bodoni 72","Bodoni MT","Iowan Old Style",Georgia,serif;
+}
+*{box-sizing:border-box}
+html{font-size:16px}html.big{font-size:20px}
+body{margin:0;background:var(--walnut);color:var(--ink);font-family:var(--song);line-height:1.7}
+button{font-family:var(--song);font-size:1rem;font-weight:600;padding:.45rem 1rem;min-height:44px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--brass-dark);background:linear-gradient(var(--brass-hi),var(--brass));color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 2px 0 var(--brass-dark)}
+button:active:not(:disabled){transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+button.plain{background:var(--enamel);border-color:#b8ab8c;box-shadow:0 2px 0 #b8ab8c}
+button.cur,button.chosen{background:var(--bakelite);color:var(--enamel);border-color:#000;box-shadow:none}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible{outline:3px solid var(--hot);outline-offset:2px}
+
+.app{position:relative;height:100vh;min-height:660px;overflow:hidden}
+.board{position:absolute;inset:0;background:
+  radial-gradient(ellipse 60% 55% at 50% 45%,rgba(255,200,120,.10),transparent 70%),
+  repeating-linear-gradient(92deg,rgba(0,0,0,.08) 0 2px,transparent 2px 9px,rgba(255,255,255,.025) 9px 10px,transparent 10px 23px),
+  repeating-linear-gradient(88deg,transparent 0 40px,rgba(0,0,0,.07) 40px 44px,transparent 44px 97px),
+  linear-gradient(180deg,var(--walnut-2),var(--walnut))}
+.topbar{position:absolute;left:28px;right:28px;top:22px;display:flex;gap:1rem;align-items:flex-start;z-index:5}
+.brand{flex:1;color:var(--enamel)}
+.brand h1{margin:0;font-size:2.4rem;font-weight:700;letter-spacing:.06em;text-shadow:0 -1px 0 rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.12)}
+.brand p{margin:.1rem 0 0;color:rgba(237,230,211,.65)}
+.tools{display:flex;gap:.6rem}
+
+.stage{position:absolute;left:24.5rem;right:24.5rem;top:130px;bottom:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+#board{width:100%;max-width:760px}
+#board svg{width:100%;height:auto;display:block;overflow:visible}
+.sw{cursor:pointer}
+.sw .blade{transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+.flow{stroke-dasharray:3 15;animation:flow .7s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-18}}
+.lbl{font-family:var(--song);font-size:15px;fill:rgba(237,230,211,.8)}
+.readout{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
+.dial{min-width:6.5rem;text-align:center;background:var(--enamel);border:3px solid var(--brass);border-radius:10px;padding:.3rem .8rem .4rem;box-shadow:inset 0 2px 6px rgba(0,0,0,.18),0 3px 0 var(--brass-dark)}
+.dial span{display:block;font-size:.9rem;color:var(--ink-soft)}
+.dial b{font-family:var(--didot);font-size:2.4rem;line-height:1;font-weight:400}
+.dial.lit{background:#fff3cf;box-shadow:inset 0 2px 6px rgba(0,0,0,.12),0 0 24px rgba(255,190,80,.55),0 3px 0 var(--brass-dark)}
+.swbtns{display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center}
+
+.panel{position:absolute;top:130px;bottom:24px;width:22rem;overflow:auto;z-index:4;padding:0 6px 6px;scrollbar-width:thin}
+.panel.left{left:28px}.panel.right{right:28px}
+.plate{position:relative;background:linear-gradient(var(--enamel),var(--enamel-2));border-radius:8px;padding:1rem 1.2rem;margin-bottom:1rem;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),0 1px 0 rgba(255,255,255,.1),0 10px 22px rgba(0,0,0,.45)}
+.plate::before,.plate::after{content:"";position:absolute;top:8px;width:7px;height:7px;border-radius:50%;background:radial-gradient(circle at 35% 35%,var(--brass-hi),var(--brass-dark))}
+.plate::before{left:8px}.plate::after{right:8px}
+.plate h2{margin:0 0 .4rem;font-size:1.12rem;letter-spacing:.04em}
+.row{display:flex;gap:.6rem;flex-wrap:wrap;margin:.6rem 0}
+.hint{color:var(--ink-soft);font-size:.92rem;margin:.2rem 0}
+table.tt{width:100%;border-collapse:collapse;text-align:center}
+.tt th{font-weight:600;font-size:.95rem;color:var(--ink-soft);border-bottom:2px solid var(--ink);padding:.3rem}
+.tt td{border-bottom:1px solid #c9bd9f;padding:.3rem;font-family:var(--didot);font-size:1.35rem}
+.tt td.p,.tt td.m{font-family:var(--song);font-size:1.05rem}
+.tt tr.now td{background:rgba(255,207,107,.35)}
+.tt td.p{cursor:pointer;color:#5a3d12;font-weight:700}
+.tt td.p.locked{cursor:default}
+.tt td.p:focus-visible{outline:3px solid var(--brass-dark)}
+.tt td.hit{color:var(--ok);font-weight:700}.tt td.miss{color:var(--bad);font-weight:700}
+.fb{border-left:4px solid var(--ink-soft);padding-left:.8rem;margin:.2rem 0 .7rem}
+.fb.ok{border-color:var(--ok)}.fb.bad{border-color:var(--bad)}
+.fb b{display:block;font-size:1.05rem}
+textarea{width:100%;font-family:var(--song);font-size:1rem;border:1px solid #b8ab8c;border-radius:6px;background:#f6f1e3;padding:.5rem;min-height:4.5rem;resize:vertical}
+.src{font-size:.8rem;color:var(--ink-soft);margin-top:.6rem;line-height:1.5}
+
+.cover{position:absolute;inset:0;z-index:20;display:grid;place-items:center;text-align:center;padding:2rem;background:radial-gradient(ellipse at 50% 40%,rgba(58,38,25,.82),rgba(20,13,8,.95))}
+.cover h2{color:var(--enamel);font-size:clamp(2.4rem,6vw,4.4rem);margin:.2rem 0;letter-spacing:.06em}
+.cover p{color:rgba(237,230,211,.8);max-width:32rem;margin:.6rem auto 1.6rem;font-size:1.1rem}
+.cover .year{font-family:var(--didot);font-size:4.5rem;color:var(--brass);line-height:1}
+.cover.gone{display:none}
+
+@media (max-width:1100px){
+  .app{height:auto;min-height:0;overflow:visible}
+  .board{position:fixed}
+  .topbar{position:relative;left:auto;right:auto;top:auto;padding:22px 16px 14px}
+  .stage{position:relative;left:auto;right:auto;top:auto;bottom:auto;padding:1rem 12px}
+  .panel{position:relative;top:auto;bottom:auto;left:auto!important;right:auto!important;width:auto;overflow:visible;padding:0 16px}
+}
+@media (prefers-reduced-motion:reduce){.flow{animation:none}.sw .blade{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="board"></div>
+  <div class="topbar">
+    <div class="brand">
+      <h1>配电盘</h1>
+      <p>信息技术，从开关电路到逻辑门</p>
+    </div>
+    <div class="tools">
+      <button class="plain" id="bigBtn" title="放大字号，便于投影">大屏</button>
+      <button class="plain" id="resetAll">重置全部</button>
+    </div>
+  </div>
+
+  <div class="panel left">
+    <div class="plate">
+      <h2>选一块电路</h2>
+      <div class="row" id="tabs"></div>
+      <p id="intro" style="margin:.2rem 0 0"></p>
+    </div>
+    <div class="plate">
+      <h2>真值表</h2>
+      <p class="hint" id="ttHint"></p>
+      <table class="tt" id="tt"></table>
+      <p class="hint" style="margin-top:.5rem">0 表示断开或灯灭，1 表示合上或灯亮。</p>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div id="board"></div>
+    <div class="readout" id="state"></div>
+    <div class="swbtns" id="swBtns"></div>
+  </div>
+
+  <div class="panel right">
+    <div class="plate" id="msg"></div>
+    <div class="plate">
+      <h2>我的记录</h2>
+      <div id="rec" class="hint">还没有完成的电路。</div>
+    </div>
+    <div class="plate">
+      <h2>我的发现</h2>
+      <p class="hint">三块电路和挑战都做完后写：开关电路和“与、或、非”有什么关系？</p>
+      <textarea id="note" placeholder="我发现……"></textarea>
+      <div class="row"><button class="plain" id="copyBtn">复制记录与发现</button></div>
+      <p class="hint" id="copyHint"></p>
+      <p class="src">设计思路参考 WeduLab（wedulab.com）公开页面；本页代码、文字与图形为自行编写，可离线使用。</p>
+    </div>
+  </div>
+
+  <div class="cover" id="cover">
+    <div>
+      <div class="year">1937</div>
+      <h2>开关会思考吗？</h2>
+      <p>那一年，21 岁的研究生香农发现：开关和继电器搭成的电路，正好能做逻辑判断。每拨一次开关之前，先猜猜灯会不会亮。</p>
+      <button id="startBtn" style="font-size:1.15rem;padding:.7rem 2.2rem">打开配电盘</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const C = {
+  and: { name: '串联', gate: '与', expr: 'A·B', inputs: 2, f: (a, b) => a & b,
+    intro: '两只开关一前一后接在同一条路上。',
+    why: (a, b, out) => out ? '两只开关都合上，电流有了一条完整的通路，灯亮。'
+      : (a || b) ? '只合上一只开关不够。串联电路只有一条路，另一只开关断开的地方电流过不去，灯不亮。'
+      : '两只开关都断开，电路没有通路，灯不亮。',
+    sum: '只有 A 合上并且 B 合上，灯才亮。这就是逻辑“与”，写作 A·B。' },
+  or: { name: '并联', gate: '或', expr: 'A+B', inputs: 2, f: (a, b) => a | b,
+    intro: '两只开关分别接在两条并排的路上。',
+    why: (a, b, out) => out ? ((a && b) ? '两条路都通，灯亮。' : '并联有两条路。只要有一只开关合上，电流就能从那条路通过，灯亮。')
+      : '两条路都断开，电流过不去，灯不亮。',
+    sum: 'A 合上或者 B 合上（至少一只），灯就亮。这就是逻辑“或”，写作 A+B。' },
+  not: { name: '继电器', gate: '非', expr: 'Ā', inputs: 1, f: a => a ? 0 : 1,
+    intro: '开关 A 控制左边的线圈。线圈通电变成电磁铁，会把右边回路的触点吸开。',
+    why: (a, b, out) => out ? 'A 断开时线圈没有电，触点在弹簧作用下保持闭合，灯所在的回路是通的，灯亮。'
+      : '合上 A，线圈通电变成电磁铁，把灯所在回路的触点吸开，灯灭。继电器把“合上”变成了“断开”。',
+    sum: 'A 合上灯灭，A 断开灯亮，输出总是和输入相反。这就是逻辑“非”，写作 Ā。' }
+};
+const ORDER = ['and', 'or', 'not'];
+const CHALLENGE = [
+  { q: '银行金库：经理和保管员两把钥匙同时转动，门才打开。', a: '与',
+    fb: { '或': '用“或”的话，只要一个人转动钥匙门就开了，金库不安全。', '非': '“非”只有一个输入，而这里有两把钥匙。' } },
+  { q: '汽车：左右两扇车门，任意一扇没关好，仪表盘上的提醒灯就亮。', a: '或',
+    fb: { '与': '用“与”的话，要两扇门都没关好灯才亮；只开一扇门时就不提醒了。', '非': '“非”只有一个输入，而这里有两扇门。' } },
+  { q: '冰箱：把“门关着”记作 1。门关着时照明灯灭，门打开时灯亮。', a: '非',
+    fb: { '与': '这里只有一个输入，而且灯的状态和输入正好相反。', '或': '这里只有一个输入，而且灯的状态和输入正好相反。' } }
+];
+let cur = 'and', st = {}, sw = { a: 0, b: 0 }, chAns = [null, null, null];
+const rowsOf = k => C[k].inputs === 2 ? [[0, 0], [0, 1], [1, 0], [1, 1]] : [[0], [1]];
+function fresh() { ORDER.forEach(k => st[k] = { pred: rowsOf(k).map(() => null), meas: rowsOf(k).map(() => null), done: false }); }
+fresh();
+(function selfTest() {
+  console.assert(rowsOf('and').map(([a, b]) => C.and.f(a, b)).join('') === '0001', '与');
+  console.assert(rowsOf('or').map(([a, b]) => C.or.f(a, b)).join('') === '0111', '或');
+  console.assert(rowsOf('not').map(([a]) => C.not.f(a)).join('') === '10', '非');
+})();
+const allPred = () => st[cur].pred.every(v => v !== null);
+const out = () => C[cur].inputs === 2 ? C[cur].f(sw.a, sw.b) : C[cur].f(sw.a);
+const rowIdx = () => C[cur].inputs === 2 ? sw.a * 2 + sw.b : sw.a;
+
+/* ---------- 配电盘上的器件 ---------- */
+// 铜线：底色 + 高光；通电时再叠一层发光和流动的电流
+function W(d, hot) {
+  return `<path d="${d}" fill="none" stroke="#5e3b1f" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="${hot ? '#ffcf6b' : '#b98250'}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" ${hot ? 'filter="url(#glow)"' : ''}/>
+    ${hot ? `<path class="flow" d="${d}" fill="none" stroke="#fffbe8" stroke-width="2.4" stroke-linecap="round"/>` : ''}`;
+}
+const screw = (x, y) => `<circle cx="${x}" cy="${y}" r="6.5" fill="url(#brass)" stroke="#6e5222"/><line x1="${x - 4}" y1="${y - 2}" x2="${x + 4}" y2="${y + 2}" stroke="#6e5222" stroke-width="1.4"/>`;
+function knife(id, x, y, closed, label) {
+  return `<g class="sw" data-sw="${id}" role="button" tabindex="0" aria-label="闸刀开关 ${label}，${closed ? '已合上' : '已断开'}">
+    <rect x="${x - 16}" y="${y - 30}" width="82" height="80" fill="transparent"/>
+    <rect x="${x - 14}" y="${y + 6}" width="78" height="16" rx="3" fill="#221b16"/>
+    <rect x="${x + 44}" y="${y - 9}" width="4" height="15" fill="url(#brass)"/><rect x="${x + 52}" y="${y - 9}" width="4" height="15" fill="url(#brass)"/>
+    <g class="blade" style="transform-origin:${x}px ${y}px;transform:rotate(${closed ? 0 : -48}deg)">
+      <rect x="${x}" y="${y - 3}" width="56" height="6" rx="2" fill="url(#brass)" stroke="#6e5222" stroke-width=".8"/>
+      <rect x="${x + 48}" y="${y - 22}" width="10" height="22" rx="4" fill="#221b16"/>
+    </g>
+    ${screw(x, y)}
+    <rect x="${x + 6}" y="${y + 28}" width="38" height="22" rx="3" fill="#ede6d3"/>
+    <text x="${x + 25}" y="${y + 45}" text-anchor="middle" font-family="Didot,'Bodoni 72',Georgia,serif" font-size="18" fill="#2a2420">${label}</text></g>`;
+}
+// 白炽灯：灯座在导线上，玻璃泡在上方
+function bulb(x, y, on) {
+  return `<g>${on ? `<circle cx="${x}" cy="${y - 46}" r="78" fill="url(#halo)"/>` : ''}
+    <path d="M${x - 11} ${y - 18} C${x - 13} ${y - 30} ${x - 28} ${y - 38} ${x - 28} ${y - 56} A28 28 0 1 1 ${x + 28} ${y - 56} C${x + 28} ${y - 38} ${x + 13} ${y - 30} ${x + 11} ${y - 18}z"
+      fill="${on ? 'rgba(255,236,170,.92)' : 'rgba(225,235,235,.28)'}" stroke="${on ? '#f1c35a' : 'rgba(237,230,211,.6)'}" stroke-width="1.5"/>
+    <path d="M${x - 5} ${y - 20} L${x - 5} ${y - 46} M${x + 5} ${y - 20} L${x + 5} ${y - 46} M${x - 5} ${y - 46} l3 -6 l3 6 l3 -6 l3 6" fill="none" stroke="${on ? '#fff8de' : '#7a6446'}" stroke-width="${on ? 2 : 1.2}" ${on ? 'filter="url(#glow)"' : ''}/>
+    <rect x="${x - 12}" y="${y - 19}" width="24" height="12" fill="url(#brass)"/>
+    <path d="M${x - 12} ${y - 15} h24 M${x - 12} ${y - 11} h24" stroke="#6e5222" stroke-width="1"/>
+    <rect x="${x - 22}" y="${y - 8}" width="44" height="16" rx="4" fill="#221b16"/>
+    ${screw(x - 22, y)}${screw(x + 22, y)}</g>`;
+}
+function battery(x, y) {
+  return `<rect x="${x - 18}" y="${y - 26}" width="36" height="52" rx="5" fill="#221b16"/>
+    <rect x="${x - 14}" y="${y - 22}" width="28" height="44" rx="3" fill="#2f5d4a"/>
+    <text x="${x}" y="${y + 6}" text-anchor="middle" font-size="15" fill="#ede6d3" font-family="Georgia,serif">+ −</text>
+    <text class="lbl" x="${x}" y="${y + 46}" text-anchor="middle">电池</text>`;
+}
+function drawBoard() {
+  const o = out(), A = sw.a, B = sw.b;
+  let s = '';
+  if (cur === 'and') {
+    s = W('M60 290 V120 H110 M166 120 H230 M286 120 H350 M394 120 H440 V290 H278 M242 290 H60', o)
+      + battery(260, 290) + knife('a', 110, 120, A, 'A') + knife('b', 230, 120, B, 'B') + bulb(372, 120, o);
+  } else if (cur === 'or') {
+    s = W('M120 140 V230 M280 140 V230', false)
+      + W('M120 185 H60 V290 H242 M278 290 H440 V100 H394 M350 100 H320 V185 H280', o)
+      + W('M120 185 V140 H200 M256 140 H280 V185', A)
+      + W('M120 185 V230 H160 M216 230 H280 V185', B)
+      + battery(260, 290) + knife('a', 200, 140, A, 'A') + knife('b', 160, 230, B, 'B') + bulb(372, 100, o);
+  } else {
+    const coil = Array.from({ length: 8 }, (_, i) => `<ellipse cx="200" cy="${158 + i * 12}" rx="14" ry="6" fill="none" stroke="${A ? '#ffcf6b' : '#b87333'}" stroke-width="3"/>`).join('');
+    s = W('M30 120 H70 M126 120 H200 V150 M200 254 V290 H128 M92 290 H30 V120', A)
+      + `<rect x="194" y="150" width="12" height="104" fill="#5b5f66"/>` + coil
+      + battery(110, 290) + knife('a', 70, 120, A, 'A')
+      + `<text class="lbl" x="170" y="206" text-anchor="end">线圈</text>`
+      + (A ? `<path d="M216 190 Q250 170 282 146" fill="none" stroke="rgba(255,207,107,.7)" stroke-width="2" stroke-dasharray="4 5"/>` : '')
+      + W('M268 120 H250 V290 H346 M382 290 H470 V120 H405 M361 120 H330', o)
+      + `<rect x="300" y="108" width="40" height="8" rx="2" fill="#221b16"/>`
+      + `<line x1="330" y1="120" x2="${A ? 282 : 270}" y2="${A ? 146 : 120}" stroke="url(#brass)" stroke-width="6" stroke-linecap="round" style="transition:all .25s"/>`
+      + screw(330, 120) + `<circle cx="268" cy="120" r="5" fill="url(#brass)"/>`
+      + `<text class="lbl" x="300" y="96" text-anchor="middle">触点</text>`
+      + battery(364, 290) + bulb(383, 120, o);
+  }
+  $('board').innerHTML = `<svg viewBox="0 0 500 350" role="img" aria-label="${C[cur].name}电路，灯${o ? '亮' : '灭'}">
+    <defs>
+      <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3dea0"/><stop offset=".5" stop-color="#c8a15a"/><stop offset="1" stop-color="#8c6a2e"/></linearGradient>
+      <radialGradient id="halo"><stop offset="0" stop-color="rgba(255,214,120,.55)"/><stop offset=".5" stop-color="rgba(255,190,80,.18)"/><stop offset="1" stop-color="rgba(255,190,80,0)"/></radialGradient>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>${s}</svg>`;
+  $('board').querySelectorAll('.sw').forEach(g => {
+    g.onclick = () => flip(g.dataset.sw);
+    g.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(g.dataset.sw); } };
+  });
+}
+
+/* ---------- 真值表 ---------- */
+function drawTable() {
+  const k = cur, two = C[k].inputs === 2, S = st[k];
+  let h = `<tr><th>A</th>${two ? '<th>B</th>' : ''}<th>我的预测</th><th>实测</th></tr>`;
+  rowsOf(k).forEach((r, i) => {
+    const p = S.pred[i], m = S.meas[i];
+    const mCls = m === null ? '' : m === p ? 'hit' : 'miss';
+    h += `<tr class="${allPred() && i === rowIdx() ? 'now' : ''}"><td>${r[0]}</td>${two ? `<td>${r[1]}</td>` : ''}
+      <td class="p${allPred() ? ' locked' : ''}" data-i="${i}" tabindex="${allPred() ? -1 : 0}" role="button" aria-label="第 ${i + 1} 行预测">${p === null ? '？' : p ? '亮' : '灭'}</td>
+      <td class="m ${mCls}">${m === null ? '' : (m ? '亮' : '灭') + (m === p ? ' ✓' : ' ✗')}</td></tr>`;
+  });
+  $('tt').innerHTML = h;
+  $('tt').querySelectorAll('td.p').forEach(td => {
+    const cyc = () => { if (allPred()) return; const i = +td.dataset.i, v = st[k].pred[i]; st[k].pred[i] = v === null ? 1 : v === 1 ? 0 : null; render(); };
+    td.onclick = cyc;
+    td.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cyc(); } };
+  });
+  $('ttHint').textContent = allPred() ? '预测已锁定。拨动闸刀，逐行验证。' : '先点“？”填出每一行灯亮不亮（点一下是亮，再点是灭）。填完才能拨闸刀。';
+}
+function flip(id) {
+  if (!allPred()) { $('msg').innerHTML = '<div class="fb"><b>先预测</b>把真值表“我的预测”一列填完，再拨闸刀验证。</div>'; return; }
+  sw[id] ^= 1;
+  const i = rowIdx(), o = out(), S = st[cur], p = S.pred[i];
+  S.meas[i] = o;
+  const row = C[cur].inputs === 2 ? `A=${sw.a}，B=${sw.b}` : `A=${sw.a}`;
+  let html = `<div class="fb ${p === o ? 'ok' : 'bad'}"><b>${row}：${p === o ? '预测正确' : `你预测灯${p ? '亮' : '灭'}，实际灯${o ? '亮' : '灭'}`}</b>${C[cur].why(sw.a, sw.b, o)}</div>`;
+  if (S.meas.every(v => v !== null)) {
+    S.done = true;
+    html += `<div class="fb ok"><b>${C[cur].name}电路验证完毕</b>${C[cur].sum}</div>`;
+    const next = ORDER.find(k => !st[k].done);
+    html += `<p class="hint">${next ? `下一块：${C[next].name}电路。` : '三块电路都做完了，去“我的记录”做挑战。'}</p>`;
+  }
+  $('msg').innerHTML = html;
+  render(true);
+}
+function drawRecord() {
+  const done = ORDER.filter(k => st[k].done);
+  let h = done.map(k => { const S = st[k], ok = S.pred.filter((p, i) => p === S.meas[i]).length;
+    return `<div>${C[k].name}，逻辑“${C[k].gate}”（${C[k].expr}）：预测对 ${ok} / ${S.pred.length} 行</div>`; }).join('');
+  if (done.length === 3) {
+    h += '<h2 style="margin-top:.8rem">挑战：生活里的逻辑</h2>' + CHALLENGE.map((c, i) => `
+      <p style="margin:.6rem 0 .2rem">${i + 1}. ${c.q}应该用哪种逻辑？</p>
+      <div class="row">${['与', '或', '非'].map(g => `<button class="${chAns[i] === g ? 'chosen' : 'plain'}" data-c="${i}" data-g="${g}">${g}</button>`).join('')}</div>
+      ${chAns[i] ? `<div class="fb ${chAns[i] === c.a ? 'ok' : 'bad'}"><b>${chAns[i] === c.a ? '对' : '再想想'}</b>${chAns[i] === c.a ? '用“' + c.a + '”正好。' : c.fb[chAns[i]] + '答案是“' + c.a + '”。'}</div>` : ''}`).join('');
+  }
+  $('rec').innerHTML = h || '还没有完成的电路。';
+  $('rec').className = h ? '' : 'hint';
+  $('rec').querySelectorAll('button[data-c]').forEach(b => b.onclick = () => { chAns[+b.dataset.c] = b.dataset.g; drawRecord(); });
+}
+function render(keepMsg) {
+  $('tabs').innerHTML = ORDER.map(k => `<button class="${k === cur ? 'cur' : 'plain'}" data-k="${k}">${C[k].name}${st[k].done ? ' ✓' : ''}</button>`).join('');
+  $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => { cur = b.dataset.k; sw = { a: 0, b: 0 }; render(); });
+  $('intro').textContent = C[cur].intro;
+  drawTable();
+  drawBoard();
+  const two = C[cur].inputs === 2, o = out();
+  $('state').innerHTML = `<div class="dial"><span>开关 A</span><b>${sw.a}</b></div>${two ? `<div class="dial"><span>开关 B</span><b>${sw.b}</b></div>` : ''}<div class="dial ${o ? 'lit' : ''}"><span>灯</span><b>${o}</b></div>`;
+  $('swBtns').innerHTML = `<button id="bA" ${allPred() ? '' : 'disabled'}>拨动 A</button>` + (two ? `<button id="bB" ${allPred() ? '' : 'disabled'}>拨动 B</button>` : '');
+  $('bA').onclick = () => flip('a');
+  if (two) $('bB').onclick = () => flip('b');
+  if (!keepMsg) $('msg').innerHTML = allPred() ? '<p class="hint">拨动闸刀，验证每一行。也可以直接点电路里的闸刀。</p>' : '<p class="hint">先在左边真值表里填预测：每种开关组合下，灯亮不亮？</p>';
+  drawRecord();
+}
+function copyAll() {
+  const lines = ORDER.filter(k => st[k].done).map(k => { const S = st[k]; return `${C[k].name}（${C[k].gate}）：预测对 ${S.pred.filter((p, i) => p === S.meas[i]).length}/${S.pred.length} 行`; });
+  const ch = CHALLENGE.map((c, i) => `挑战${i + 1}：选“${chAns[i] || '未答'}”${chAns[i] ? (chAns[i] === c.a ? '，对' : '，错') : ''}`);
+  const text = `配电盘：开关与逻辑门记录\n${lines.join('\n')}\n${ch.join('\n')}\n我的发现：${$('note').value.trim() || '（未填写）'}`;
+  const done = () => $('copyHint').textContent = '已复制，可以粘贴到作业或聊天里。';
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { $('copyHint').textContent = '复制失败，请手动选中文字复制。'; } ta.remove(); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+}
+$('startBtn').onclick = () => $('cover').classList.add('gone');
+$('copyBtn').onclick = copyAll;
+$('bigBtn').onclick = () => document.documentElement.classList.toggle('big');
+$('resetAll').onclick = () => { fresh(); cur = 'and'; sw = { a: 0, b: 0 }; chAns = [null, null, null]; $('note').value = ''; $('copyHint').textContent = ''; render(); };
+render();
+</script>
+</body>
+</html>

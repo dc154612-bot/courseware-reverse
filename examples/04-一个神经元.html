@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一个神经元：它真的认识竖线吗</title>
+<style>
+:root{
+  --bg:#ffffff;--ink:#141414;--grey:#6d6d6d;--cell:#ececec;--pos:#2338c8;--neg:#f26b1d;--lit:#ffd400;--ok:#1d7a3e;--bad:#d0301f;
+  --sans:"Helvetica Neue","Arial","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --c:46px;
+}
+*{box-sizing:border-box}
+html{font-size:16px}html.big{font-size:20px;--c:56px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55}
+button{font-family:var(--sans);font-size:1rem;font-weight:700;padding:.5rem 1rem;min-height:44px;border:3px solid var(--ink);border-radius:0;background:var(--bg);color:var(--ink);cursor:pointer}
+button:hover:not(:disabled){background:var(--ink);color:#fff}
+button.primary{background:var(--ink);color:#fff}
+button.chosen{background:var(--ink);color:#fff}
+button:disabled{opacity:.3;cursor:not-allowed}
+button:focus-visible{outline:4px solid var(--lit);outline-offset:2px}
+
+.poster{display:grid;grid-template-columns:20rem 1fr 22rem;min-height:100vh}
+.col{padding:1.6rem 1.6rem 2rem}
+.col.left{background:var(--pos);color:#fff}
+.col.left button{border-color:#fff;background:transparent;color:#fff}
+.col.left button:hover:not(:disabled){background:#fff;color:var(--pos)}
+.col.left .tool[data-t="1"].chosen{background:#fff;color:var(--pos)}
+.col.left .tool[data-t="-1"].chosen{background:var(--neg);border-color:var(--neg);color:#fff}
+.col.left .tool[data-t="0"].chosen{background:var(--ink);border-color:var(--ink);color:#fff}
+.col.left .hint,.col.left .levels button .t small{color:rgba(255,255,255,.78)}
+.col.left .levels,.col.left .block{border-color:#fff}
+.col.left .levels button{border-color:rgba(255,255,255,.35)}
+.col.left .levels button:hover{color:var(--lit)}
+.col.left .levels button.cur .n{color:var(--lit)}
+.col.left input[type=range]{accent-color:var(--lit)}
+.col.right{border-left:4px solid var(--ink)}
+h1{font-size:3.4rem;line-height:1.02;margin:0 0 1rem;font-weight:800;letter-spacing:-.01em}
+.lede{font-size:1rem;margin:0 0 1.4rem}
+.levels{display:grid;gap:.2rem;margin:0 0 1.4rem;border-top:4px solid var(--ink)}
+.col.left .levels button{display:grid;grid-template-columns:3.4rem 1fr;align-items:baseline;text-align:left;border:none;border-bottom:1px solid rgba(255,255,255,.35);padding:.4rem 0;min-height:56px;background:none;color:#fff}
+.col.left .levels button:hover:not(:disabled){background:none}
+.levels button .n{font-size:2.6rem;font-weight:800;line-height:1}
+.levels button .t{font-size:1rem;font-weight:700}
+.levels button .t small{display:block;font-weight:400;color:var(--grey);font-size:.88rem}
+.block{border-top:4px solid var(--ink);padding-top:.7rem;margin-top:1.2rem}
+.block h2{margin:0 0 .5rem;font-size:1.05rem;font-weight:800}
+.row{display:flex;gap:.6rem;flex-wrap:wrap;margin:.6rem 0;align-items:center}
+.hint{color:var(--grey);font-size:.92rem}
+input[type=range]{flex:1;accent-color:var(--ink)}
+
+/* 中间：公式是主角 */
+.col.mid{display:flex;flex-direction:column;gap:1.6rem}
+.goal{font-size:1.15rem;font-weight:700;margin:0;max-width:46rem}
+.eq{display:flex;align-items:flex-end;gap:1.2rem;flex-wrap:wrap;margin:0 -1.6rem;padding:1.4rem 1.6rem;background:var(--bg);border-top:4px solid var(--ink);border-bottom:4px solid var(--ink);transition:background .25s}
+.eq.off{background:var(--cell)}.eq.on{background:var(--lit)}
+.eq.off .term span,.eq.on .term span{color:var(--ink)}
+.term{display:flex;flex-direction:column}
+.term b{font-size:clamp(3.4rem,7vw,6.4rem);line-height:.9;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.term span{font-size:.9rem;color:var(--grey);margin-top:.4rem}
+.op{font-size:clamp(2.4rem,5vw,4.4rem);font-weight:300;line-height:1;padding-bottom:1.6rem}
+.lamp{width:clamp(4.5rem,9vw,7.5rem);height:clamp(4.5rem,9vw,7.5rem);border-radius:50%;border:4px solid var(--ink);align-self:center;margin-left:auto;display:grid;place-items:center;font-weight:800;font-size:1.1rem;transition:background .2s}
+.lamp.on{background:#fff}
+.grids{display:flex;gap:2.2rem;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(7,var(--c));gap:2px;touch-action:none;user-select:none}
+.grid div{width:var(--c);height:var(--c);background:var(--cell);display:grid;place-items:center;font-weight:800;font-size:1.3rem;color:#fff}
+#wGrid div{cursor:crosshair}
+.w-pos{background:var(--pos)!important}.w-neg{background:var(--neg)!important}
+.x-on{background:var(--ink)!important}
+.c-pos{background:var(--pos)!important;box-shadow:inset 0 0 0 4px var(--ink)}
+.c-neg{background:var(--neg)!important;box-shadow:inset 0 0 0 4px var(--ink)}
+.cap{font-weight:800;margin-bottom:.4rem}
+.cap small{display:block;font-weight:400;color:var(--grey);font-size:.88rem}
+.samples{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:0;border-top:4px solid var(--ink);border-left:1px solid #d0d0d0}
+.smp{border-right:1px solid #d0d0d0;border-bottom:1px solid #d0d0d0;padding:.5rem;cursor:pointer;font-size:.88rem;position:relative;background:#fff}
+.smp.sel{box-shadow:inset 0 0 0 4px var(--ink)}
+.smp.good::after,.smp.badc::after{position:absolute;top:.35rem;right:.5rem;font-weight:800;font-size:1.1rem}
+.smp.good::after{content:"✓";color:var(--ok)}.smp.badc::after{content:"✗";color:var(--bad)}
+.smp .st{display:flex;align-items:center;gap:.35rem;font-weight:700;margin-top:.2rem}
+.dot{width:.9rem;height:.9rem;border-radius:50%;border:2px solid var(--ink);display:inline-block}
+.dot.on{background:var(--lit)}
+.mini{display:grid;grid-template-columns:repeat(7,8px);gap:1px;margin-bottom:.3rem}
+.mini i{width:8px;height:8px;background:var(--cell)}.mini i.on{background:var(--ink)}
+.acc{font-size:2.6rem;font-weight:800;line-height:1}
+.fb{border-top:4px solid var(--ink);padding-top:.5rem;margin-bottom:1rem}
+.fb.ok{border-color:var(--ok)}.fb.bad{border-color:var(--bad)}
+.fb b{display:block;font-size:1.2rem;font-weight:800;margin-bottom:.2rem}
+textarea{width:100%;font-family:var(--sans);font-size:1rem;border:3px solid var(--ink);border-radius:0;padding:.5rem;min-height:5rem;resize:vertical}
+.src{font-size:.8rem;color:var(--grey);margin-top:1rem}
+
+.cover{position:fixed;inset:0;z-index:20;background:var(--bg);display:grid;grid-template-columns:1fr 1fr;align-items:center;padding:4vw;gap:4vw}
+.cover h2{font-size:clamp(2.6rem,6.5vw,6rem);line-height:1;margin:0;font-weight:800;letter-spacing:-.02em}
+.cover p{font-size:1.15rem;max-width:30rem;margin:1.4rem 0 2rem}
+.cover .big7{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:420px;width:100%;justify-self:center}
+.cover .big7 i{aspect-ratio:1;background:var(--cell)}
+.cover .big7 i.on{background:var(--ink)}.cover .big7 i.w{background:var(--pos)}
+.cover.gone{display:none}
+
+@media (max-width:1100px){
+  .poster{grid-template-columns:1fr}
+  .col.left,.col.right{border:none;border-top:4px solid var(--ink)}
+  .col.mid{order:-1}
+  h1{font-size:2.6rem}
+  .cover{grid-template-columns:1fr}
+}
+@media (max-width:520px){:root{--c:38px}}
+</style>
+</head>
+<body>
+<div class="poster">
+  <section class="col left">
+    <h1>一个<br>神经元</h1>
+    <p class="lede">图片是 7×7 个像素，黑色记 1，白色记 0。神经元给每个像素一个权重，把“像素 × 权重”全部加起来，再加上偏置。得分大于 0，灯亮，表示它判断这是竖线。</p>
+    <div class="levels" id="tabs"></div>
+    <div class="block" id="tools">
+      <h2>画权重</h2>
+      <div class="row">
+        <button data-t="1" class="tool">+1 画笔</button>
+        <button data-t="-1" class="tool">−1 画笔</button>
+        <button data-t="0" class="tool">橡皮</button>
+      </div>
+      <div class="row"><span style="font-weight:700">偏置</span><input type="range" id="bias" min="-10" max="10" step="1" aria-label="偏置"><b id="biasV" style="min-width:2.4rem;text-align:right"></b></div>
+      <div class="row"><button id="clearW">清空权重</button><button id="hintBtn">提示</button></div>
+      <p class="hint" id="hintTxt"></p>
+    </div>
+    <div class="block">
+      <div class="row" style="margin:0"><button id="bigBtn" title="放大字号，便于投影">大屏</button><button id="resetAll">重置全部</button></div>
+    </div>
+  </section>
+
+  <section class="col mid">
+    <p class="goal" id="goal"></p>
+    <div class="eq" id="eq"></div>
+    <div class="grids">
+      <div><div class="cap">权重<small>神经元记住的东西</small></div><div class="grid" id="wGrid"></div></div>
+      <div><div class="cap">这张图的每个像素<small>像素 × 权重</small></div><div class="grid" id="cGrid"></div></div>
+    </div>
+    <div>
+      <div class="row" style="justify-content:space-between;margin:0 0 .4rem"><span class="cap" style="margin:0">测试图片</span><span id="acc"></span></div>
+      <div class="samples" id="samples"></div>
+    </div>
+  </section>
+
+  <section class="col right">
+    <div id="msg"></div>
+    <div class="block">
+      <h2>我的发现</h2>
+      <p class="hint" style="margin-top:0">四关做完后写：一个神经元“认识”的到底是什么？为什么认图片需要很多神经元？</p>
+      <textarea id="note" placeholder="我发现……"></textarea>
+      <div class="row"><button id="copyBtn">复制记录与发现</button></div>
+      <p class="hint" id="copyHint"></p>
+      <p class="src">模型简化：只有一个神经元，用“得分大于 0”代替真实网络里的激活函数。设计思路参考 WeduLab（wedulab.com）公开页面；本页代码、文字与图形为自行编写，可离线使用。</p>
+    </div>
+  </section>
+</div>
+
+<div class="cover" id="cover">
+  <div>
+    <h2>它真的<br>认识竖线吗？</h2>
+    <p>一个神经元只会做一件事：把每个像素乘上权重，再加起来。先猜它的判断，再亲手给它画权重，看它到底学会了什么。</p>
+    <button class="primary" id="startBtn" style="font-size:1.2rem;padding:.8rem 2.4rem">开始</button>
+  </div>
+  <div class="big7" id="coverArt" aria-hidden="true"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const N = 7;
+const img = fn => { const a = new Array(N * N).fill(0); for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (fn(r, c)) a[r * N + c] = 1; return a; };
+const V = (col, r0 = 0, r1 = 6) => ({ x: img((r, c) => c === col && r >= r0 && r <= r1), want: 1, name: `竖线，第 ${col + 1} 列` });
+const H = (row, c0 = 0, c1 = 6) => ({ x: img((r, c) => r === row && c >= c0 && c <= c1), want: 0, name: `横线，第 ${row + 1} 行` });
+const CROSS = { x: img((r, c) => r === 3 || c === 3), want: 1, name: '十字' };
+
+const LEVELS = [
+  { name: '先猜', sub: '权重已经设好', mode: 'predict',
+    goal: '权重已经设好：中间一列都是 +1，偏置是 −3。逐张预测灯会不会亮，再揭晓。',
+    preset: { w: img((r, c) => c === 3), b: -3 },
+    samples: [V(3), H(3), V(1), CROSS],
+    why: [
+      '竖线的 7 个黑像素都落在 +1 上，得分 7，加偏置 −3 得 4，大于 0，灯亮。',
+      '横线只有正中间一个像素碰到 +1，得分 1，加偏置 −3 得 −2，灯不亮。',
+      '这条也是竖线，可它不在有权重的那一列，每个像素都乘 0，得分 0，加偏置 −3，灯不亮。神经元并不“认识竖线”，它只会按位置做加权求和。',
+      '十字的竖笔落在 +1 那一列，得分 7；横笔其余像素乘 0，不影响。7 − 3 = 4，灯亮。它把十字也当成了“竖线”。'
+    ] },
+  { name: '中间的线', sub: '自己画权重', mode: 'paint',
+    goal: '自己画权重：中间的竖线要亮，中间的横线不亮。',
+    samples: [V(3), V(3, 1, 5), H(3), H(3, 1, 5)],
+    hint: '竖线和横线只在正中间一个像素重合。把竖线经过的像素画成 +1，再调偏置。' },
+  { name: '三个位置', sub: '竖线、横线都会移动', mode: 'paint',
+    goal: '竖线可能在第 3、4、5 列，横线可能在第 3、4、5 行。全部判断对。',
+    samples: [V(2, 1, 5), V(3, 1, 5), V(4, 1, 5), H(2, 1, 5), H(3, 1, 5), H(4, 1, 5)],
+    hint: '找只有竖线才会经过、横线永远碰不到的像素：看看竖线的两端（第 2 行和第 6 行）。' },
+  { name: '任意位置', sub: '一个神经元够用吗', mode: 'paint', ask: true,
+    goal: '竖线可能在任意一列，横线可能在任意一行（都是满 7 格）。一个神经元能把 14 张全部判断对吗？',
+    samples: [...Array(N).keys()].map(i => V(i)).concat([...Array(N).keys()].map(i => H(i))),
+    hint: '试试把所有竖线的得分加起来，再把所有横线的得分加起来，比较一下。' }
+];
+let lv = 0, sel = 0, tool = 1, painting = false, state = [];
+function fresh() {
+  state = LEVELS.map(L => ({ w: L.preset ? [...L.preset.w] : new Array(N * N).fill(0), b: L.preset ? L.preset.b : 0,
+    pred: L.samples.map(() => null), shown: L.samples.map(() => false), ask: null, edits: 0, revealed: false, passed: false }));
+}
+fresh();
+const score = (S, x) => x.reduce((s, v, i) => s + v * S.w[i], 0) + S.b;
+const outOf = (S, x) => score(S, x) > 0 ? 1 : 0;
+(function selfTest() {
+  const try2 = { w: img((r, c) => c === 3), b: -2 };
+  console.assert(LEVELS[1].samples.every(s => outOf(try2, s.x) === s.want), '第 2 关参考解');
+  const try3 = { w: img((r, c) => (r === 1 || r === 5) && c >= 2 && c <= 4), b: -1 };
+  console.assert(LEVELS[2].samples.every(s => outOf(try3, s.x) === s.want), '第 3 关参考解');
+  // 第 4 关：所有竖线得分之和 = 所有横线得分之和 = 权重总和 + 7×偏置，所以不可能全对
+  for (let k = 0; k < 300; k++) {
+    const S = { w: Array.from({ length: N * N }, () => Math.floor(Math.random() * 3) - 1), b: 0 };
+    const sv = LEVELS[3].samples.filter(s => s.want).reduce((a, s) => a + score(S, s.x), 0);
+    const sh = LEVELS[3].samples.filter(s => !s.want).reduce((a, s) => a + score(S, s.x), 0);
+    console.assert(sv === sh, '竖线总分应等于横线总分');
+  }
+})();
+
+function drawTabs() {
+  $('tabs').innerHTML = LEVELS.map((L, i) => `<button class="${i === lv ? 'cur' : ''}" data-i="${i}"><span class="n">${i + 1}</span><span class="t">${L.name}${state[i].passed ? '　✓' : ''}<small>${L.sub}</small></span></button>`).join('');
+  $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => { lv = +b.dataset.i; sel = 0; render(); });
+  $('goal').textContent = LEVELS[lv].goal;
+}
+function drawGrids() {
+  const S = state[lv], L = LEVELS[lv], x = L.samples[sel].x;
+  $('wGrid').innerHTML = S.w.map((v, i) => `<div data-i="${i}" class="${v > 0 ? 'w-pos' : v < 0 ? 'w-neg' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}</div>`).join('');
+  const hide = L.mode === 'predict' && !S.shown[sel];
+  $('cGrid').innerHTML = x.map((v, i) => {
+    const p = v * S.w[i];
+    if (hide || !v) return `<div class="${v ? 'x-on' : ''}"></div>`;
+    return `<div class="${p > 0 ? 'c-pos' : p < 0 ? 'c-neg' : 'x-on'}">${p > 0 ? '+' : p < 0 ? '−' : ''}</div>`;
+  }).join('');
+  const sum = x.reduce((s, v, i) => s + v * S.w[i], 0), sc = sum + S.b;
+  const f = n => n < 0 ? '−' + Math.abs(n) : String(n);
+  $('eq').className = 'eq' + (hide ? '' : sc > 0 ? ' on' : ' off');
+  $('eq').innerHTML = `<div class="term"><b>${hide ? '?' : f(sum)}</b><span>像素得分之和</span></div><div class="op">+</div>
+    <div class="term"><b>${f(S.b)}</b><span>偏置</span></div><div class="op">=</div>
+    <div class="term"><b>${hide ? '?' : f(sc)}</b><span>${hide ? '先预测' : sc > 0 ? '大于 0' : '不大于 0'}</span></div>
+    <div class="lamp ${!hide && sc > 0 ? 'on' : ''}" aria-label="${hide ? '未揭晓' : sc > 0 ? '灯亮' : '灯不亮'}">${hide ? '' : sc > 0 ? '亮' : '不亮'}</div>`;
+}
+function drawSamples() {
+  const S = state[lv], L = LEVELS[lv];
+  let right = 0;
+  $('samples').innerHTML = L.samples.map((s, i) => {
+    const o = outOf(S, s.x), ok = o === s.want;
+    if (ok) right++;
+    const show = L.mode === 'paint' || S.shown[i];
+    const cls = 'smp' + (i === sel ? ' sel' : '') + (show && L.mode === 'paint' ? (ok ? ' good' : ' badc') : '');
+    return `<div class="${cls}" data-i="${i}" role="button" tabindex="0"><div class="mini">${s.x.map(v => `<i class="${v ? 'on' : ''}"></i>`).join('')}</div>${s.name}
+      <div class="st">${show ? `<span class="dot ${o ? 'on' : ''}"></span>${o ? '亮' : '不亮'}` : '？'}</div></div>`;
+  }).join('');
+  $('samples').querySelectorAll('.smp').forEach(d => {
+    d.onclick = () => { sel = +d.dataset.i; render(true); };
+    d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); d.click(); } };
+  });
+  $('acc').innerHTML = L.mode === 'paint' ? `<span class="acc">${right}</span> / ${L.samples.length} 判断对` : '';
+  return right;
+}
+function render(keepMsg) {
+  drawTabs();
+  const S = state[lv], L = LEVELS[lv];
+  $('tools').style.display = L.mode === 'paint' ? '' : 'none';
+  $('bias').value = S.b; $('biasV').textContent = S.b;
+  document.querySelectorAll('.tool').forEach(b => b.classList.toggle('chosen', +b.dataset.t === tool));
+  $('hintTxt').textContent = '';
+  drawGrids();
+  const right = drawSamples();
+  if (L.mode === 'paint' && !L.ask && right === L.samples.length && !S.passed) { S.passed = true; drawTabs(); keepMsg = false; }
+  if (!keepMsg) $('msg').innerHTML = message(right);
+}
+function message(right) {
+  const S = state[lv], L = LEVELS[lv];
+  if (L.mode === 'predict') {
+    const i = sel, s = L.samples[i];
+    if (!S.shown[i]) return `<div class="fb"><b>第 ${i + 1} 张：${s.name}</b>灯会亮吗？</div>
+      <div class="row"><button id="pY" class="${S.pred[i] === 1 ? 'chosen' : ''}">会亮</button><button id="pN" class="${S.pred[i] === 0 ? 'chosen' : ''}">不会亮</button></div>
+      <button class="primary" id="showBtn" ${S.pred[i] === null ? 'disabled' : ''}>揭晓</button>`;
+    const o = outOf(S, s.x), ok = S.pred[i] === o, next = L.samples.findIndex((_, j) => !S.shown[j]);
+    return `<div class="fb ${ok ? 'ok' : 'bad'}"><b>${ok ? '预测正确' : `你预测${S.pred[i] ? '会亮' : '不会亮'}，实际${o ? '亮了' : '没亮'}`}</b>${L.why[i]}</div>`
+      + (next >= 0 ? '<button class="primary" id="nextBtn">下一张</button>' : '<div class="fb ok"><b>第 1 关完成</b>神经元记住的不是“竖线”这个形状，而是“哪些位置有墨水”。下一关你来画权重。</div>');
+  }
+  if (L.ask) {
+    if (S.ask === null) return `<div class="fb"><b>先预测</b>一个神经元，能把 14 张全部判断对吗？</div><div class="row"><button id="aY">能</button><button id="aN">不能</button></div>`;
+    if (!S.revealed) return `<div class="fb"><b>你预测：${S.ask ? '能' : '不能'}</b>现在动手画权重试试，看最多能对几张。改过几次权重后，可以看原因。</div>
+      <button class="primary" id="revealBtn" ${S.edits < 5 ? 'disabled' : ''}>揭晓原因${S.edits < 5 ? `（再改 ${5 - S.edits} 次）` : ''}</button>`;
+    return `<div class="fb ${S.ask ? 'bad' : 'ok'}"><b>${S.ask ? '其实做不到' : '你预测对了：做不到'}</b>把 7 条竖线的得分加起来，每个权重正好被加了一次，等于“全部权重之和 + 7 × 偏置”。把 7 条横线的得分加起来，结果一模一样。两边总分相等，竖线的平均分就等于横线的平均分，不可能每条竖线都比每条横线高。</div>
+      <div class="fb"><b>那 AI 怎么认图？</b>用很多个神经元：有的只管某一列，有的只管某一行，再由下一层把它们的结果组合起来。卷积网络更进一步：让同一组小权重在整张图上滑动，在哪个位置都能认出同一种笔画。</div>`;
+  }
+  if (S.passed) return '<div class="fb ok"><b>全部判断对了</b>看看你画的权重：它依靠的是哪些位置？如果竖线换到别的列，它还认得出吗？</div>';
+  return `<div class="fb"><b>目标：${L.samples.length} 张全部判断对</b>选左边的画笔，在权重格子里点击或拖动；用偏置调“门槛”。点任意一张测试图片，看它每个像素的得分。</div>`
+    + (right ? `<p class="hint">打 ✗ 的图片判断错了，点开看看是哪些像素在拉分。</p>` : '');
+}
+document.addEventListener('click', e => {
+  const S = state[lv], id = e.target.id;
+  if (id === 'pY' || id === 'pN') { S.pred[sel] = id === 'pY' ? 1 : 0; render(); }
+  if (id === 'showBtn') { S.shown[sel] = true; if (S.shown.every(Boolean)) S.passed = true; render(); }
+  if (id === 'nextBtn') { sel = LEVELS[lv].samples.findIndex((_, j) => !S.shown[j]); render(); }
+  if (id === 'aY' || id === 'aN') { S.ask = id === 'aY'; render(); }
+  if (id === 'revealBtn') { S.revealed = true; S.passed = true; render(); }
+});
+function paint(target) {
+  const d = target.closest && target.closest('#wGrid div');
+  if (!d || LEVELS[lv].mode !== 'paint') return;
+  const S = state[lv], i = +d.dataset.i;
+  if (S.w[i] === tool) return;
+  S.w[i] = tool; S.edits++;
+  render(true);
+  if (LEVELS[lv].ask && !S.revealed) $('msg').innerHTML = message();
+}
+let last = null;
+$('wGrid').addEventListener('pointerdown', e => { painting = true; last = [e.clientX, e.clientY]; paint(e.target); });
+// 快速拖动时两次事件之间会跨过几格，沿连线每 8px 取一点补画
+window.addEventListener('pointermove', e => {
+  if (!painting) return;
+  const [x0, y0] = last, dx = e.clientX - x0, dy = e.clientY - y0, n = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 8));
+  for (let k = 1; k <= n; k++) { const t = document.elementFromPoint(x0 + dx * k / n, y0 + dy * k / n); if (t) paint(t); }
+  last = [e.clientX, e.clientY];
+});
+window.addEventListener('pointerup', () => { if (painting) { painting = false; render(); } });
+document.querySelectorAll('.tool').forEach(b => b.onclick = () => { tool = +b.dataset.t; render(true); });
+$('bias').oninput = e => { const S = state[lv]; S.b = +e.target.value; S.edits++; render(true); $('msg').innerHTML = message(drawSamples()); };
+$('clearW').onclick = () => { const S = state[lv]; S.w.fill(0); S.b = 0; render(); };
+$('hintBtn').onclick = () => { $('hintTxt').textContent = LEVELS[lv].hint || ''; };
+$('bigBtn').onclick = () => document.documentElement.classList.toggle('big');
+$('resetAll').onclick = () => { fresh(); lv = 0; sel = 0; $('note').value = ''; $('copyHint').textContent = ''; render(); };
+$('startBtn').onclick = () => $('cover').classList.add('gone');
+$('coverArt').innerHTML = Array.from({ length: 49 }, (_, i) => `<i class="${i % 7 === 3 ? 'w' : i % 7 === 1 ? 'on' : ''}"></i>`).join('');
+$('copyBtn').onclick = () => {
+  const lines = LEVELS.map((L, i) => {
+    const S = state[i];
+    if (L.mode === 'predict') return `第1关 ${L.name}：预测对 ${L.samples.filter((s, j) => S.shown[j] && S.pred[j] === outOf(S, s.x)).length}/${L.samples.length} 张`;
+    if (L.ask) return `第4关 ${L.name}：预测“${S.ask === null ? '未答' : S.ask ? '能' : '不能'}”，最多判断对 ${L.samples.filter(s => outOf(S, s.x) === s.want).length}/${L.samples.length} 张`;
+    return `第${i + 1}关 ${L.name}：${S.passed ? '完成' : '未完成'}`;
+  });
+  const text = `一个神经元记录\n${lines.join('\n')}\n我的发现：${$('note').value.trim() || '（未填写）'}`;
+  const done = () => $('copyHint').textContent = '已复制，可以粘贴到作业或聊天里。';
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (err) { $('copyHint').textContent = '复制失败，请手动选中文字复制。'; } ta.remove(); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+};
+render();
+</script>
+</body>
+</html>
